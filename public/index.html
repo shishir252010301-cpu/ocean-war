@@ -30,8 +30,8 @@
     image-rendering: pixelated;
     image-rendering: crisp-edges;
     width: 100%;
-    border: 2px solid #1a3a1a;
-    box-shadow: 0 0 40px #00ff4133, 0 0 80px #00ff4111;
+    border: 2px solid #2a6a7a;
+    box-shadow: 0 0 40px #2ab0d033, 0 0 80px #2ab0d011;
   }
 
   #ui {
@@ -301,25 +301,70 @@ const COLORS = [
 ];
 
 const PAL = {
-  water:    '#0d2233',
-  gridLine: '#0f2030',
-  wave:     '#153045',
+  // ocean
+  waterDeep:'#0e3b52',
+  waterMid: '#1a5e7d',
+  waterShallow:'#2a85a8',
+  foam:     '#eaf7f8',
+  foamDim:  '#bfe6ec',
+  // sky elements floating over the water
+  cloud:    '#13384a',
+  cloudLite:'#1c4a60',
+  gull:     '#0a1f2a',
   bullet:   '#ffee00',
   bulletGlow:'#ff880080',
   hp100:'#00ff41', hp50:'#ffaa00', hp25:'#ff4141',
   powerup: { shield:'#44aaff', rapid:'#ffaa00', triple:'#ff44aa' },
   explosion:['#ff4400','#ff8800','#ffcc00','#ffffff'],
+  // medieval ship palette
+  hullDark: '#3c2414',
+  hull:     '#6b4423',
+  hullLite: '#8a5c33',
+  deck:     '#caa05c',
+  mast:     '#2a1a0d',
+  sail:     '#f4efe0',
+  sailShade:'#d8d0ba',
+  flagpole: '#1a1008',
 };
 
 const PU_ICONS  = { shield:'🛡', rapid:'⚡', triple:'🔱' };
 
-const SHIP_ROWS = [
-  '  XXX  ',
-  ' XXXXX ',
-  'CXXXXXX',
-  ' XXXXX ',
-  '  XXX  ',
-];
+// Build a 13×9 pixel-grid medieval ship: flat stern (left), tapered
+// pointed bow (right), wooden hull, deck, square sail amidships and a
+// mast-top flag tile (recolored per-player / per-team in drawShipSprite).
+function buildShipRows() {
+  const COLS = 13, MIDROW = 4, STERN_COL = 2;
+  const grid = [];
+  for (let r = 0; r < 9; r++) grid.push(new Array(COLS).fill(' '));
+
+  for (let r = 0; r < 9; r++) {
+    const d = Math.abs(r - MIDROW);          // distance from centerline
+    const bowCol = (COLS - 1) - d * 2;        // tapers to a point at the bow
+    if (bowCol < STERN_COL) continue;
+    for (let c = STERN_COL; c <= bowCol; c++) {
+      const edge = (c === STERN_COL || c === bowCol || r === 0 || r === 8);
+      grid[r][c] = edge ? 'H' : 'D';           // H = hull edge, D = deck
+    }
+  }
+  // square sail amidships
+  for (let r = MIDROW - 2; r <= MIDROW + 2; r++) {
+    for (let c = 5; c <= 8; c++) {
+      if (grid[r] && grid[r][c] === 'D') grid[r][c] = 'S';
+    }
+  }
+  // mast + flag tile
+  if (grid[MIDROW][7] !== ' ') grid[MIDROW][7] = 'M';
+  if (grid[MIDROW - 3] ) grid[MIDROW][6] = 'M';
+  grid[MIDROW][9] = 'F';
+  // bow cannon tip
+  for (let r = MIDROW + 1; r >= MIDROW - 1; r--) {
+    const d = Math.abs(r - MIDROW);
+    const bowCol = (COLS - 1) - d * 2;
+    if (grid[r] && grid[r][bowCol] !== undefined) { grid[r][bowCol] = 'C'; break; }
+  }
+  return grid.map(row => row.join(''));
+}
+const SHIP_ROWS = buildShipRows();
 
 // ══════════════════════════════════════════════
 //  CANVAS
@@ -483,34 +528,108 @@ function buildWaterCanvas() {
   const oc  = document.createElement('canvas');
   oc.width  = W; oc.height = H;
   const oc2 = oc.getContext('2d');
-  oc2.fillStyle = PAL.water;
-  oc2.fillRect(0, 0, W, H);
-  oc2.strokeStyle = PAL.gridLine;
-  oc2.lineWidth = 1;
-  for (let x = 0; x < W; x += 40) { oc2.beginPath(); oc2.moveTo(x,0); oc2.lineTo(x,H); oc2.stroke(); }
-  for (let y = 0; y < H; y += 40) { oc2.beginPath(); oc2.moveTo(0,y); oc2.lineTo(W,y); oc2.stroke(); }
+  // base ocean gradient, banded in chunky pixel steps (not smooth) to
+  // keep the retro pixel-art look
+  const bands = 24;
+  for (let i = 0; i < bands; i++) {
+    const t = i / (bands - 1);
+    oc2.fillStyle = t < 0.5
+      ? PAL.waterDeep
+      : (t < 0.8 ? PAL.waterMid : PAL.waterShallow);
+    oc2.fillRect(0, Math.floor(i * H / bands), W, Math.ceil(H / bands) + 1);
+  }
+  // speckled pixel dither for texture
+  oc2.fillStyle = 'rgba(255,255,255,0.04)';
+  for (let i = 0; i < 900; i++) {
+    const x = Math.floor(Math.random() * W / PS) * PS;
+    const y = Math.floor(Math.random() * H / PS) * PS;
+    oc2.fillRect(x, y, PS, PS);
+  }
   waterCanvas = oc;
 }
 
 function drawWater(frame) {
   ctx.drawImage(waterCanvas, 0, 0);
-  ctx.globalAlpha = 0.25;
-  for (let y = 20; y < H; y += 40) {
-    const offset = Math.sin(frame * 0.04 + y * 0.05) * 6;
-    ctx.fillStyle = PAL.wave;
-    for (let x = 0; x < W; x += 20) {
-      const wx = (x + offset + frame * 0.3) % W;
-      ctx.fillRect(wx, y, 12, 2);
+
+  // animated foam wave-lines, drifting sideways in staggered rows
+  for (let y = 16; y < H; y += 36) {
+    const offset = Math.sin(frame * 0.035 + y * 0.04) * 8;
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = PAL.foamDim;
+    for (let x = 0; x < W; x += 24) {
+      const wx = (x + offset + frame * 0.4) % W;
+      ctx.fillRect(Math.round(wx), y, PS*2, PS/2);
+    }
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = PAL.foam;
+    for (let x = 12; x < W; x += 24) {
+      const wx = (x - offset*1.4 + frame * 0.25) % W;
+      ctx.fillRect(Math.round(wx), y + 10, PS, PS/2);
     }
   }
   ctx.globalAlpha = 1;
 }
 
 // ══════════════════════════════════════════════
+//  CLOUDS  (drifting shadows cast on the water)
+// ══════════════════════════════════════════════
+const CLOUD_DEFS = [
+  { y: 70,  speed: 0.18, scale: 1.4, phase: 0   },
+  { y: 220, speed: 0.11, scale: 1.0, phase: 240 },
+  { y: 380, speed: 0.22, scale: 1.7, phase: 480 },
+  { y: 500, speed: 0.14, scale: 1.1, phase: 700 },
+];
+function drawClouds(frame) {
+  ctx.globalAlpha = 0.16;
+  for (const c of CLOUD_DEFS) {
+    const span = W + 220;
+    const x = ((frame * c.speed + c.phase) % span) - 110;
+    const s = c.scale;
+    ctx.fillStyle = PAL.cloud;
+    // chunky pixel "cumulus" cluster, built from a few overlapping blocks
+    const blocks = [
+      [0, 0, 60, 18], [14, -8, 40, 16], [34, 4, 36, 14],
+      [-10, 6, 30, 12], [50, 8, 26, 10],
+    ];
+    for (const [bx, by, bw, bh] of blocks) {
+      ctx.fillRect(
+        Math.round(x + bx*s), Math.round(c.y + by*s),
+        Math.round(bw*s/PS)*PS, Math.round(bh*s/PS)*PS
+      );
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ══════════════════════════════════════════════
+//  SEAGULLS  (small flying pixel sprites overhead)
+// ══════════════════════════════════════════════
+const GULL_DEFS = [
+  { speed: 1.1, ampl: 30, baseY: 90,  phase: 0   },
+  { speed: 0.8, ampl: 18, baseY: 160, phase: 900 },
+  { speed: 1.4, ampl: 24, baseY: 60,  phase: 1700 },
+];
+function drawSeagulls(frame) {
+  ctx.fillStyle = PAL.gull;
+  for (const g of GULL_DEFS) {
+    const span = W + 160;
+    const t = (frame * g.speed + g.phase) % span;
+    const x = t - 80;
+    const y = g.baseY + Math.sin(frame * 0.05 + g.phase) * g.ampl * 0.2;
+    const flap = Math.sin(frame * 0.35 + g.phase) > 0 ? 4 : 1; // wing up/down
+    // tiny pixel "M" / gull-wing silhouette
+    ctx.fillRect(Math.round(x), Math.round(y), PS, PS);
+    ctx.fillRect(Math.round(x) - PS*2, Math.round(y) - flap, PS*2, PS);
+    ctx.fillRect(Math.round(x) + PS,   Math.round(y) - flap, PS*2, PS);
+  }
+}
+
+// ══════════════════════════════════════════════
 //  SHIP DRAWING
 // ══════════════════════════════════════════════
-function drawShipSprite(cx, cy, angle, hullColor, isMe) {
+function drawShipSprite(cx, cy, angle, hullColor, isMe, frame) {
   const cannonColor = isMe ? '#00ff41' : '#ffffff';
+  const flutter = Math.sin(frame * 0.12) * 1; // sail/flag flutter offset
   const rows = SHIP_ROWS;
   const cols = rows[0].length;
   const rLen = rows.length;
@@ -522,18 +641,41 @@ function drawShipSprite(cx, cy, angle, hullColor, isMe) {
   for (let r = 0; r < rLen; r++) {
     for (let c = 0; c < cols; c++) {
       const ch = rows[r][c];
-      if (ch === 'X') {
+      const x = ox + c*PS, y = oy + r*PS;
+      if (ch === 'H') {
+        ctx.fillStyle = PAL.hullDark;
+        ctx.fillRect(x, y, PS, PS);
+      } else if (ch === 'D') {
+        ctx.fillStyle = PAL.deck;
+        ctx.fillRect(x, y, PS, PS);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fillRect(x + PS - 1, y, 1, PS);
+      } else if (ch === 'S') {
+        // white sail, with a subtle flutter-shaded trailing edge
+        ctx.fillStyle = PAL.sail;
+        ctx.fillRect(x, y, PS, PS);
+        ctx.fillStyle = PAL.sailShade;
+        ctx.fillRect(x, y + PS - 1, PS, 1);
+      } else if (ch === 'M') {
+        ctx.fillStyle = PAL.mast;
+        ctx.fillRect(x, y, PS, PS);
+      } else if (ch === 'F') {
+        // pirate-style flag, colored per ship, flutters at the masthead
         ctx.fillStyle = hullColor;
-        ctx.fillRect(ox + c*PS, oy + r*PS, PS, PS);
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-        ctx.fillRect(ox + c*PS, oy + r*PS, 1, 1);
-        ctx.fillRect(ox + c*PS + PS-1, oy + r*PS + PS-1, 1, 1);
+        ctx.fillRect(x, y - Math.round(flutter), PS, PS - 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(x + 1, y - Math.round(flutter) + 1, 1, 1); // tiny skull-mark fleck
       } else if (ch === 'C') {
         ctx.fillStyle = cannonColor;
-        ctx.fillRect(ox + c*PS, oy + r*PS, PS, PS);
+        ctx.fillRect(x, y, PS, PS);
       }
     }
   }
+  // accent stripe along the hull side, tinted with the player's color
+  ctx.fillStyle = hullColor;
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(ox + 2*PS, oy + (4)*PS, PS, PS);
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -569,7 +711,7 @@ function drawShip(ship, frame) {
     ctx.globalAlpha = 1;
   }
 
-  drawShipSprite(Math.round(ship.x), Math.round(ship.y), ship.angle, color, isMe);
+  drawShipSprite(Math.round(ship.x), Math.round(ship.y), ship.angle, color, isMe, frame);
 
   // Health bar
   const bw = 36, bh = 4;
@@ -742,10 +884,12 @@ function gameLoop() {
 
   updateParticles();
   drawWater(waterFrame);
+  drawClouds(waterFrame);
   drawPowerups(powerups, frame);
   drawBullets(bullets);
   for (const s of ships) drawShip(s, frame);
   drawParticles();
+  drawSeagulls(waterFrame);
 
   const me = ships.find(s => s.id === myId);
   if (me) { updateHUD(me); }
