@@ -14,7 +14,7 @@
 
   /* ── SCREENS ── */
   .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;pointer-events:all;}
-  .screen.hidden{display:none!important;}
+  .screen.hidden{display:none;}
 
   /* ── CARDS ── */
   .card{
@@ -664,15 +664,16 @@ canvas.addEventListener('touchend',  e=>{e.preventDefault();['w','s','a','d',' '
 // ═══════════════════════════════════════════════════
 function showScreen(id){
   ['landingScreen','joinCodeScreen','roomCreatedScreen','lobbyScreen','gameOverScreen','winScreen'].forEach(s=>{
-    document.getElementById(s).style.display=(s===id)?'flex':'none';
+    const el = document.getElementById(s);
+    if (el) {
+      if (s === id) {
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+    }
   });
 }
-function addKillMsg(msg,color='#ffcc55'){
-  const feed=document.getElementById('kill-feed');
-  const el=document.createElement('div');el.className='kill-msg';el.textContent=msg;el.style.borderColor=color;el.style.color=color;
-  feed.appendChild(el);setTimeout(()=>el.remove(),3100);
-}
-
 // ═══════════════════════════════════════════════════
 //  BUTTON WIRING
 // ═══════════════════════════════════════════════════
