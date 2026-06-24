@@ -3,224 +3,122 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚓ Ship Battle</title>
+<title>⚓ Ocean War</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#0a1a2a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Press Start 2P',monospace;overflow:hidden;}
+  #app{position:relative;width:900px;max-width:100vw;}
+  canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;width:100%;border:3px solid #0d4d6b;box-shadow:0 0 40px #1a9abf55,0 0 80px #0d4d6b33;}
+  #ui{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;}
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  /* ── SCREENS ── */
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;pointer-events:all;}
+  .screen.hidden{display:none!important;}
 
-  body {
-    background: #0a0a0f;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    font-family: 'Press Start 2P', monospace;
-    overflow: hidden;
+  /* ── CARDS ── */
+  .card{
+    background:rgba(5,18,30,0.90);
+    border:3px solid #7d5a30;
+    padding:26px 34px;
+    display:flex;flex-direction:column;align-items:center;gap:13px;
+    box-shadow:0 0 0 2px #c89040,0 8px 40px rgba(0,0,0,0.85),inset 0 0 30px rgba(0,0,0,0.3);
+    position:relative;min-width:320px;max-width:440px;width:100%;
   }
+  .card::before{content:'';position:absolute;inset:4px;border:1px solid rgba(200,144,64,0.25);pointer-events:none;}
 
-  #app {
-    position: relative;
-    width: 900px;
-    max-width: 100vw;
-  }
+  .title{font-size:clamp(16px,3.5vw,30px);color:#ffd780;text-shadow:0 0 10px #c89040,0 2px 0 #3a2010;letter-spacing:3px;text-align:center;line-height:1.5;}
+  .title-sm{font-size:clamp(10px,1.8vw,15px);color:#ffd780;text-shadow:0 0 8px #c89040,0 2px 0 #3a2010;letter-spacing:2px;text-align:center;}
+  .sub{font-size:clamp(6px,1vw,8px);color:#a08060;text-align:center;line-height:2;}
+  .wood-div{width:100%;height:2px;background:linear-gradient(90deg,transparent,#c89040,transparent);margin:2px 0;}
+  .err{font-size:7px;color:#ff5544;text-align:center;min-height:12px;}
 
-  canvas {
-    display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    width: 100%;
-    border: 2px solid #2a6a7a;
-    box-shadow: 0 0 40px #2ab0d033, 0 0 80px #2ab0d011;
+  /* ── BUTTONS ── */
+  .btn{
+    font-family:'Press Start 2P',monospace;font-size:clamp(7px,1.2vw,10px);
+    padding:11px 22px;background:linear-gradient(180deg,#a06030 0%,#7d4e28 50%,#5c3a1e 100%);
+    border:2px solid #c89040;color:#ffd780;cursor:pointer;
+    text-transform:uppercase;letter-spacing:2px;transition:all .12s;pointer-events:all;
+    box-shadow:0 3px 0 #3a2010,0 0 10px rgba(200,144,64,0.25);text-shadow:0 1px 0 #3a2010;
+    width:100%;
   }
+  .btn:hover{background:linear-gradient(180deg,#c07840 0%,#a06030 50%,#7d4e28 100%);box-shadow:0 3px 0 #3a2010,0 0 20px rgba(200,144,64,0.55);transform:translateY(-1px);}
+  .btn:active{transform:translateY(1px);box-shadow:0 1px 0 #3a2010;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .btn:disabled:hover{transform:none;box-shadow:0 3px 0 #3a2010;}
+  .btn-row{display:flex;gap:10px;width:100%;}
+  .btn-row .btn{width:auto;flex:1;}
+  .btn.outline{background:transparent;border:2px solid #c89040;color:#ffd780;box-shadow:none;}
+  .btn.outline:hover{background:rgba(200,144,64,0.15);}
 
-  #ui {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    pointer-events: none;
+  /* ── INPUTS ── */
+  input[type=text]{
+    font-family:'Press Start 2P',monospace;font-size:clamp(8px,1.1vw,10px);
+    background:#05141e;border:2px solid #5c3a1e;color:#ffd780;
+    padding:10px 14px;width:100%;outline:none;text-align:center;letter-spacing:2px;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.5);
   }
+  input[type=text]:focus{border-color:#c89040;box-shadow:inset 0 2px 6px rgba(0,0,0,0.5),0 0 10px #c8904040;}
+  input[type=text]::placeholder{color:#5c4030;}
 
-  .screen {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.88);
-    gap: 16px;
-    padding: 30px;
-    pointer-events: all;
+  /* ── ROOM CODE DISPLAY ── */
+  .room-code-box{
+    background:#030e18;border:2px solid #c89040;padding:12px 20px;
+    text-align:center;width:100%;
   }
-  .screen.hidden { display: none; }
+  .room-code{font-size:clamp(18px,3vw,26px);color:#ffd780;letter-spacing:8px;text-shadow:0 0 10px #c89040;}
+  .room-code-label{font-size:7px;color:#a08060;margin-bottom:6px;}
+  .copy-hint{font-size:6px;color:#a08060;margin-top:6px;}
 
-  .title {
-    font-size: clamp(18px, 4vw, 36px);
-    color: #00ff41;
-    text-shadow: 0 0 10px #00ff41, 0 0 30px #00ff4180;
-    letter-spacing: 4px;
-    text-align: center;
-    line-height: 1.4;
+  /* ── SHARE LINK BOX ── */
+  .share-box{
+    background:#030e18;border:1px solid #5c3a1e;padding:10px 14px;
+    width:100%;display:flex;gap:8px;align-items:center;
   }
-  .subtitle {
-    font-size: clamp(6px, 1.2vw, 11px);
-    color: #4a8a4a;
-    text-align: center;
-    line-height: 2;
+  .share-url{font-size:6px;color:#a08060;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .btn-copy{
+    font-family:'Press Start 2P',monospace;font-size:6px;padding:6px 10px;
+    background:#5c3a1e;border:1px solid #c89040;color:#ffd780;cursor:pointer;white-space:nowrap;
+    transition:all .1s;pointer-events:all;
   }
+  .btn-copy:hover{background:#7d4e28;}
+  .btn-copy.copied{color:#4dd9ff;border-color:#4dd9ff;}
 
-  .btn {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(8px, 1.5vw, 13px);
-    padding: 14px 28px;
-    background: transparent;
-    border: 2px solid #00ff41;
-    color: #00ff41;
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    transition: all 0.15s;
-    pointer-events: all;
+  /* ── LOBBY PLAYER LIST ── */
+  #lobbyList{display:flex;flex-direction:column;gap:5px;width:100%;max-height:170px;overflow-y:auto;}
+  .lobby-player{
+    font-size:clamp(6px,0.9vw,8px);padding:6px 10px;
+    background:rgba(92,58,30,0.3);color:#ffd780;
+    display:flex;align-items:center;gap:8px;
+    border:1px solid rgba(200,144,64,0.2);
   }
-  .btn:hover { background: #00ff41; color: #000; box-shadow: 0 0 20px #00ff41; }
-  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .btn:disabled:hover { background: transparent; color: #00ff41; box-shadow: none; }
-  .btn.red { border-color: #ff4141; color: #ff4141; }
-  .btn.red:hover { background: #ff4141; color: #000; box-shadow: 0 0 20px #ff4141; }
+  .lobby-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;box-shadow:0 0 4px currentColor;}
 
-  input[type=text] {
-    font-family: 'Press Start 2P', monospace;
-    font-size: clamp(8px, 1.2vw, 11px);
-    background: #0a140a;
-    border: 2px solid #2a5a2a;
-    color: #00ff41;
-    padding: 10px 16px;
-    width: 240px;
-    outline: none;
-    text-align: center;
-    letter-spacing: 2px;
-  }
-  input[type=text]:focus { border-color: #00ff41; box-shadow: 0 0 10px #00ff4140; }
+  /* ── HUD ── */
+  #hud{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;gap:10px;}
+  .hud-box{background:rgba(5,14,22,0.85);border:2px solid #5c3a1e;padding:8px 12px;font-size:clamp(5px,0.8vw,8px);color:#ffd780;line-height:1.9;min-width:125px;box-shadow:0 0 0 1px #c8904040;}
+  .hud-box .lbl{color:#a08060;font-size:.85em;}
+  .hp-wrap{width:100%;height:6px;background:#0d1a22;margin-top:4px;border:1px solid #2a1a0a;}
+  .hp-bar{height:100%;background:#4dd9ff;transition:width .1s;}
+  .hp-bar.low{background:#ff5544;}.hp-bar.mid{background:#ffaa33;}
+  .pu-slot{display:inline-block;width:14px;height:14px;border:1px solid #5c3a1e;text-align:center;line-height:14px;font-size:10px;margin-right:3px;}
+  .pu-slot.on{border-color:#c89040;box-shadow:0 0 5px #c89040;}
 
-  /* Lobby player list */
-  #lobbyList {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    width: 100%;
-    max-width: 320px;
-    max-height: 160px;
-    overflow-y: auto;
-  }
-  .lobby-player {
-    font-size: clamp(7px, 1vw, 9px);
-    padding: 7px 12px;
-    border-left: 3px solid #00ff41;
-    background: rgba(0,255,65,0.05);
-    color: #00ff41;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .lobby-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  /* ── SCOREBOARD ── */
+  #scoreboard{position:absolute;top:10px;right:10px;background:rgba(5,14,22,0.85);border:2px solid #5c3a1e;padding:8px 12px;pointer-events:none;min-width:130px;box-shadow:0 0 0 1px #c8904040;}
+  .sb-row{display:flex;justify-content:space-between;gap:8px;font-size:clamp(5px,.7vw,7px);color:#a08060;margin-bottom:3px;}
+  .sb-row.me{color:#ffd780;}.sb-row.dead{text-decoration:line-through;opacity:.4;}
+  .sb-name{max-width:75px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-  /* HUD */
-  #hud {
-    position: absolute;
-    top: 10px; left: 10px; right: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    pointer-events: none;
-    gap: 10px;
-  }
-  .hud-box {
-    background: rgba(0,0,0,0.7);
-    border: 1px solid #1a3a1a;
-    padding: 8px 12px;
-    font-size: clamp(5px, 0.9vw, 9px);
-    color: #00ff41;
-    line-height: 1.8;
-    min-width: 130px;
-  }
-  .hud-box .label { color: #4a8a4a; font-size: 0.85em; }
-  .health-bar-wrap { width: 100%; height: 6px; background: #1a1a1a; margin-top: 4px; }
-  .health-bar { height: 100%; background: #00ff41; transition: width 0.1s; }
-  .health-bar.low { background: #ff4141; }
-  .health-bar.mid { background: #ffaa00; }
-  .powerup-slot {
-    display: inline-block;
-    width: 14px; height: 14px;
-    border: 1px solid #4a8a4a;
-    text-align: center;
-    line-height: 14px;
-    font-size: 10px;
-    margin-right: 3px;
-  }
-  .powerup-slot.active { border-color: #00ff41; box-shadow: 0 0 6px #00ff41; }
+  /* ── KILL FEED ── */
+  #kill-feed{position:absolute;bottom:28px;left:10px;display:flex;flex-direction:column;gap:4px;pointer-events:none;}
+  .kill-msg{font-size:clamp(5px,.75vw,7px);color:#ffcc55;background:rgba(5,12,20,0.88);padding:4px 8px;border-left:2px solid #c89040;animation:fadeOut 3s forwards;}
+  @keyframes fadeOut{0%,70%{opacity:1}100%{opacity:0}}
 
-  /* Scoreboard */
-  #scoreboard {
-    position: absolute;
-    top: 10px; right: 10px;
-    background: rgba(0,0,0,0.7);
-    border: 1px solid #1a3a1a;
-    padding: 8px 12px;
-    pointer-events: none;
-    min-width: 140px;
-  }
-  .sb-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: clamp(5px, 0.75vw, 7px);
-    color: #4a8a4a;
-    margin-bottom: 3px;
-  }
-  .sb-row.me { color: #00ff41; }
-  .sb-row.dead { text-decoration: line-through; opacity: 0.4; }
-  .sb-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  #kill-feed {
-    position: absolute;
-    bottom: 28px; left: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    pointer-events: none;
-  }
-  .kill-msg {
-    font-size: clamp(5px, 0.8vw, 8px);
-    color: #ffaa00;
-    background: rgba(0,0,0,0.7);
-    padding: 4px 8px;
-    border-left: 2px solid #ffaa00;
-    animation: fadeOut 3s forwards;
-  }
-  @keyframes fadeOut { 0%,70%{opacity:1} 100%{opacity:0} }
-
-  #controls-hint {
-    position: absolute;
-    bottom: 10px; left: 50%;
-    transform: translateX(-50%);
-    font-size: clamp(5px, 0.7vw, 7px);
-    color: #2a5a2a;
-    white-space: nowrap;
-    pointer-events: none;
-  }
-
-  #conn-status {
-    position: absolute;
-    bottom: 10px; right: 10px;
-    font-size: 6px;
-    color: #2a5a2a;
-    pointer-events: none;
-  }
-  #conn-status.ok  { color: #00ff41; }
-  #conn-status.err { color: #ff4141; }
-
-  .divider { width: 200px; height: 1px; background: #1a3a1a; }
-  .error-msg { font-size: 8px; color: #ff4141; text-align: center; }
+  #ctrl-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:clamp(4px,.6vw,6px);color:#3a2a1a;white-space:nowrap;pointer-events:none;}
+  #conn-status{position:absolute;bottom:8px;right:8px;font-size:6px;color:#3a2a1a;pointer-events:none;}
+  #conn-status.ok{color:#4dd9ff;}#conn-status.err{color:#ff5544;}
+  #battleTicker{position:absolute;bottom:0;left:0;right:0;background:rgba(5,12,20,0.7);border-top:1px solid #3a2010;padding:5px 12px;font-size:6px;color:#a08060;pointer-events:none;overflow:hidden;white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -228,800 +126,619 @@
   <canvas id="c" width="900" height="600"></canvas>
   <div id="ui">
 
-    <!-- JOIN SCREEN -->
-    <div class="screen" id="joinScreen">
-      <div class="title">⚓ SHIP<br>BATTLE</div>
-      <div class="subtitle">MULTIPLAYER · UP TO 8 PLAYERS</div>
-      <div class="divider"></div>
-      <input type="text" id="nameInput" placeholder="YOUR SHIP NAME" maxlength="12" autocomplete="off">
-      <button class="btn" id="btnJoin">⚓ JOIN GAME</button>
-      <div class="error-msg" id="joinError"></div>
-      <div class="subtitle" style="font-size:6px;color:#2a5a2a">
-        WASD / ARROWS — MOVE &amp; AIM<br>
-        SPACE — FIRE · 1-3 — POWER-UP
+    <!-- ═══ LANDING: choose create or join ═══ -->
+    <div class="screen" id="landingScreen">
+      <div class="card">
+        <div class="title">⚓ OCEAN<br>WAR</div>
+        <div class="sub">REAL-TIME PIRATE BATTLES · UP TO 8 CAPTAINS</div>
+        <div class="wood-div"></div>
+        <button class="btn" id="btnCreate">⚓ CREATE ROOM</button>
+        <button class="btn outline" id="btnGoJoin">🔗 JOIN WITH CODE</button>
+        <div class="sub" style="font-size:6px">CREATE A ROOM AND SHARE THE LINK WITH YOUR CREW</div>
       </div>
     </div>
 
-    <!-- LOBBY SCREEN -->
+    <!-- ═══ JOIN WITH CODE (manual entry) ═══ -->
+    <div class="screen hidden" id="joinCodeScreen">
+      <div class="card">
+        <div class="title-sm">🔗 JOIN ROOM</div>
+        <div class="sub">Enter the 6-letter room code from your friend</div>
+        <div class="wood-div"></div>
+        <input type="text" id="codeInput" placeholder="ROOM CODE" maxlength="6" autocomplete="off" style="letter-spacing:6px;font-size:14px;">
+        <input type="text" id="nameInputCode" placeholder="YOUR SHIP NAME" maxlength="12" autocomplete="off">
+        <button class="btn" id="btnJoinCode">⚓ SET SAIL</button>
+        <button class="btn outline" id="btnBackToLanding">← BACK</button>
+        <div class="err" id="joinCodeErr"></div>
+      </div>
+    </div>
+
+    <!-- ═══ ROOM CREATED: show code + share link ═══ -->
+    <div class="screen hidden" id="roomCreatedScreen">
+      <div class="card">
+        <div class="title-sm">⚓ ROOM CREATED!</div>
+        <div class="sub">Share this with your crew:</div>
+        <div class="room-code-box">
+          <div class="room-code-label">ROOM CODE</div>
+          <div class="room-code" id="displayCode">——————</div>
+          <div class="copy-hint">or share the full link below</div>
+        </div>
+        <div class="share-box">
+          <div class="share-url" id="shareUrl">—</div>
+          <button class="btn-copy" id="btnCopyLink">COPY</button>
+        </div>
+        <div class="wood-div"></div>
+        <input type="text" id="nameInputCreate" placeholder="YOUR SHIP NAME" maxlength="12" autocomplete="off">
+        <button class="btn" id="btnEnterRoom">⚓ ENTER YOUR ROOM</button>
+        <div class="err" id="createErr"></div>
+      </div>
+    </div>
+
+    <!-- ═══ LOBBY ═══ -->
     <div class="screen hidden" id="lobbyScreen">
-      <div class="title" style="font-size:clamp(14px,2.5vw,24px)">⚓ LOBBY</div>
-      <div class="subtitle" id="lobbyStatus">Waiting for players…</div>
-      <div id="lobbyList"></div>
-      <button class="btn" id="btnStart" disabled>▶ START GAME</button>
-      <div class="subtitle" style="font-size:6px;color:#2a5a2a">
-        NEED AT LEAST 2 PLAYERS · HOST CLICKS START
+      <div class="card">
+        <div class="title-sm">⚓ PIRATE HARBOUR</div>
+        <!-- room code mini display in lobby -->
+        <div style="display:flex;align-items:center;gap:10px;width:100%;">
+          <div style="flex:1;font-size:6px;color:#a08060;">ROOM CODE</div>
+          <div style="font-size:clamp(10px,1.5vw,13px);color:#ffd780;letter-spacing:4px;" id="lobbyCodeDisplay">——</div>
+          <button class="btn-copy" id="btnCopyLobby" style="font-size:6px;padding:5px 8px;">COPY LINK</button>
+        </div>
+        <div class="wood-div"></div>
+        <div class="sub" id="lobbyStatus">Waiting for crew…</div>
+        <div id="lobbyList"></div>
+        <div class="wood-div"></div>
+        <button class="btn" id="btnStart" disabled>▶ RAISE ANCHOR</button>
+        <div class="sub" style="font-size:6px;">NEED AT LEAST 2 PLAYERS · HOST CLICKS START</div>
+      </div>
+      <div id="battleTicker">⚔ DEMO BATTLE IN PROGRESS…</div>
+    </div>
+
+    <!-- ═══ GAME OVER ═══ -->
+    <div class="screen hidden" id="gameOverScreen">
+      <div class="card">
+        <div class="title" id="goTitle">GAME OVER</div>
+        <div class="sub" id="goStats"></div>
+        <button class="btn" id="btnReplay">▶ BACK TO HARBOUR</button>
       </div>
     </div>
 
-    <!-- GAME OVER SCREEN -->
-    <div class="screen hidden" id="gameOverScreen">
-      <div class="title" id="goTitle">GAME OVER</div>
-      <div class="subtitle" id="goStats"></div>
-      <button class="btn" id="btnReplay">▶ BACK TO LOBBY</button>
-    </div>
-
-    <!-- WIN SCREEN -->
+    <!-- ═══ WIN ═══ -->
     <div class="screen hidden" id="winScreen">
-      <div class="title" style="color:#ffaa00;text-shadow:0 0 10px #ffaa00">🏆 VICTORY!</div>
-      <div class="subtitle" id="winStats"></div>
-      <button class="btn" id="btnWinLobby">▶ BACK TO LOBBY</button>
+      <div class="card">
+        <div class="title" style="color:#ffd700;text-shadow:0 0 14px #ffd700,0 2px 0 #3a2010">🏆 VICTORY!</div>
+        <div class="sub" id="winStats"></div>
+        <button class="btn" id="btnWinLobby">▶ BACK TO HARBOUR</button>
+      </div>
     </div>
 
     <!-- HUD -->
     <div id="hud" style="display:none">
       <div class="hud-box">
-        <div class="label">CAPTAIN</div>
+        <div class="lbl">CAPTAIN</div>
         <div id="hudName">—</div>
-        <div class="label" style="margin-top:4px">HEALTH</div>
-        <div class="health-bar-wrap"><div class="health-bar" id="hudHP" style="width:100%"></div></div>
+        <div class="lbl" style="margin-top:4px">HULL</div>
+        <div class="hp-wrap"><div class="hp-bar" id="hudHP" style="width:100%"></div></div>
         <div id="hudHPVal" style="margin-top:2px">100 / 100</div>
-        <div class="label" style="margin-top:6px">POWER-UPS</div>
+        <div class="lbl" style="margin-top:6px">CARGO</div>
         <div id="hudPU">—</div>
       </div>
     </div>
 
     <div id="scoreboard" style="display:none"></div>
     <div id="kill-feed"></div>
-    <div id="controls-hint">W/↑ FORWARD · A/D ROTATE · SPACE FIRE · 1-3 POWER-UP</div>
+    <div id="ctrl-hint">W/↑ FORWARD · A/D ROTATE · SPACE FIRE · 1-3 POWER-UP</div>
     <div id="conn-status">CONNECTING…</div>
   </div>
 </div>
 
 <script>
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 //  CONSTANTS
-// ══════════════════════════════════════════════
-const W = 900, H = 600;
-const PS = 5;
-const MAX_HP = 100;
+// ═══════════════════════════════════════════════════
+const W=900,H=600,MAX_HP=100;
+const SAIL_COLORS=['#e8d870','#e84040','#40c0e8','#e87040','#a040e8','#40e880','#e840a0','#80e840'];
+const HULL={dark:'#5c3a1e',mid:'#7d4e28',light:'#a06030',plank:'#6b4420',gold:'#c89040',rope:'#c8a060',sail:'#e8e0c0',sailShadow:'#c0b898',mast:'#7d5a30'};
+const OCEAN={deep:'#0d3d5c',mid:'#1a6b8a',light:'#2490b5',foam:'#7dd4f0',shimmer:'#4dd9ff',dark2:'#082a40'};
+const PU_COL={shield:'#44aaff',rapid:'#ffaa22',triple:'#ff44bb'};
+const PU_ICONS={shield:'🛡',rapid:'⚡',triple:'🔱'};
 
-const COLORS = [
-  '#00cc33','#cc3300','#cc6600','#9900cc',
-  '#0066cc','#cc0066','#00aacc','#aacc00',
-];
-
-const PAL = {
-  // ocean
-  waterDeep:'#0e3b52',
-  waterMid: '#1a5e7d',
-  waterShallow:'#2a85a8',
-  foam:     '#eaf7f8',
-  foamDim:  '#bfe6ec',
-  // sky elements floating over the water
-  cloud:    '#13384a',
-  cloudLite:'#1c4a60',
-  gull:     '#0a1f2a',
-  bullet:   '#ffee00',
-  bulletGlow:'#ff880080',
-  hp100:'#00ff41', hp50:'#ffaa00', hp25:'#ff4141',
-  powerup: { shield:'#44aaff', rapid:'#ffaa00', triple:'#ff44aa' },
-  explosion:['#ff4400','#ff8800','#ffcc00','#ffffff'],
-  // medieval ship palette
-  hullDark: '#3c2414',
-  hull:     '#6b4423',
-  hullLite: '#8a5c33',
-  deck:     '#caa05c',
-  mast:     '#2a1a0d',
-  sail:     '#f4efe0',
-  sailShade:'#d8d0ba',
-  flagpole: '#1a1008',
-};
-
-const PU_ICONS  = { shield:'🛡', rapid:'⚡', triple:'🔱' };
-
-// Build a 13×9 pixel-grid medieval ship: flat stern (left), tapered
-// pointed bow (right), wooden hull, deck, square sail amidships and a
-// mast-top flag tile (recolored per-player / per-team in drawShipSprite).
-function buildShipRows() {
-  const COLS = 13, MIDROW = 4, STERN_COL = 2;
-  const grid = [];
-  for (let r = 0; r < 9; r++) grid.push(new Array(COLS).fill(' '));
-
-  for (let r = 0; r < 9; r++) {
-    const d = Math.abs(r - MIDROW);          // distance from centerline
-    const bowCol = (COLS - 1) - d * 2;        // tapers to a point at the bow
-    if (bowCol < STERN_COL) continue;
-    for (let c = STERN_COL; c <= bowCol; c++) {
-      const edge = (c === STERN_COL || c === bowCol || r === 0 || r === 8);
-      grid[r][c] = edge ? 'H' : 'D';           // H = hull edge, D = deck
-    }
-  }
-  // square sail amidships
-  for (let r = MIDROW - 2; r <= MIDROW + 2; r++) {
-    for (let c = 5; c <= 8; c++) {
-      if (grid[r] && grid[r][c] === 'D') grid[r][c] = 'S';
-    }
-  }
-  // mast + flag tile
-  if (grid[MIDROW][7] !== ' ') grid[MIDROW][7] = 'M';
-  if (grid[MIDROW - 3] ) grid[MIDROW][6] = 'M';
-  grid[MIDROW][9] = 'F';
-  // bow cannon tip
-  for (let r = MIDROW + 1; r >= MIDROW - 1; r--) {
-    const d = Math.abs(r - MIDROW);
-    const bowCol = (COLS - 1) - d * 2;
-    if (grid[r] && grid[r][bowCol] !== undefined) { grid[r][bowCol] = 'C'; break; }
-  }
-  return grid.map(row => row.join(''));
-}
-const SHIP_ROWS = buildShipRows();
-
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 //  CANVAS
-// ══════════════════════════════════════════════
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+// ═══════════════════════════════════════════════════
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+ctx.imageSmoothingEnabled=false;
 
-// ══════════════════════════════════════════════
-//  CLIENT STATE
-// ══════════════════════════════════════════════
-let myId       = null;
-let gameState  = null;   // latest state from server
-let keysDown   = {};
-let animId     = null;
-let waterCanvas= null;
-let waterFrame = 0;
-let particles  = [];
-let trails     = {};     // shipId → [{x,y,age}]
-let isHost     = false;  // first player to join becomes host
+// ═══════════════════════════════════════════════════
+//  SHIP CACHE
+// ═══════════════════════════════════════════════════
+const DIRS=8,SHIP_SIZE=52;
+const shipCache={};
 
-// ══════════════════════════════════════════════
-//  WEBSOCKET
-// ══════════════════════════════════════════════
-const WS_URL = location.protocol === 'https:'
-  ? 'wss://' + location.host
-  : 'ws://'  + location.host;
-
-let ws = null;
-let reconnectTimer = null;
-
-function connect() {
-  ws = new WebSocket(WS_URL);
-
-  ws.onopen = () => {
-    setConnStatus('ONLINE', 'ok');
-    clearTimeout(reconnectTimer);
-  };
-
-  ws.onclose = () => {
-    setConnStatus('DISCONNECTED', 'err');
-    reconnectTimer = setTimeout(connect, 3000);
-  };
-
-  ws.onerror = () => {
-    setConnStatus('ERROR', 'err');
-  };
-
-  ws.onmessage = e => {
-    let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
-    handleMsg(msg);
-  };
+function drawShipToCtx(c2,dir,sailColor){
+  const hw=SHIP_SIZE/2;
+  c2.clearRect(0,0,SHIP_SIZE,SHIP_SIZE);
+  const a=(dir/DIRS)*Math.PI*2-Math.PI/2;
+  c2.save();c2.translate(hw,hw);c2.rotate(a);
+  c2.fillStyle='rgba(0,0,0,0.25)';c2.beginPath();c2.ellipse(2,3,13,8,0,0,Math.PI*2);c2.fill();
+  c2.fillStyle=HULL.mid;c2.beginPath();c2.moveTo(0,-18);c2.bezierCurveTo(8,-10,12,0,12,8);c2.bezierCurveTo(12,14,8,18,0,18);c2.bezierCurveTo(-8,18,-12,14,-12,8);c2.bezierCurveTo(-12,0,-8,-10,0,-18);c2.fill();
+  c2.strokeStyle=HULL.plank;c2.lineWidth=1;
+  for(let i=-6;i<=10;i+=4){c2.beginPath();const w=11-Math.abs(i-2)*0.5;c2.moveTo(-w,i);c2.lineTo(w,i);c2.stroke();}
+  c2.strokeStyle=HULL.light;c2.lineWidth=1.5;c2.beginPath();c2.moveTo(-4,-16);c2.bezierCurveTo(-9,-8,-11,0,-11,8);c2.stroke();
+  c2.strokeStyle=HULL.dark;c2.lineWidth=1.5;c2.beginPath();c2.moveTo(4,-16);c2.bezierCurveTo(9,-8,11,0,11,8);c2.stroke();
+  c2.strokeStyle=HULL.gold;c2.lineWidth=1.5;c2.beginPath();c2.moveTo(-11,6);c2.bezierCurveTo(-11,12,-8,17,0,18);c2.bezierCurveTo(8,17,11,12,11,6);c2.stroke();
+  c2.fillStyle=HULL.dark;c2.fillRect(-7,-12,14,22);
+  c2.fillStyle=HULL.mid;c2.fillRect(-5,4,10,10);
+  c2.fillStyle=HULL.light;c2.fillRect(-4,5,4,4);c2.fillRect(1,5,4,4);
+  c2.fillStyle=HULL.dark;c2.fillRect(-3,6,2,2);c2.fillRect(2,6,2,2);
+  c2.fillStyle=HULL.mast;c2.fillRect(-2,-14,4,22);
+  c2.fillStyle=HULL.sailShadow;c2.fillRect(-9,-11,18,16);
+  c2.fillStyle=HULL.sail;c2.fillRect(-8,-10,16,14);
+  c2.fillStyle=sailColor;c2.fillRect(-8,-8,16,4);c2.fillRect(-8,-2,16,4);
+  c2.strokeStyle=HULL.rope;c2.lineWidth=0.7;
+  c2.beginPath();c2.moveTo(-8,-10);c2.lineTo(8,-10);c2.stroke();
+  c2.beginPath();c2.moveTo(-8,4);c2.lineTo(8,4);c2.stroke();
+  c2.fillStyle=HULL.mast;c2.fillRect(-3,-18,6,4);
+  c2.fillStyle=HULL.rope;c2.fillRect(-2,-18,4,1);
+  c2.fillStyle=sailColor;c2.beginPath();c2.moveTo(0,-20);c2.lineTo(7,-17);c2.lineTo(0,-14);c2.fill();
+  c2.fillStyle=HULL.gold;c2.beginPath();c2.arc(0,-18,2,0,Math.PI*2);c2.fill();
+  c2.fillStyle='#2a1a0a';c2.fillRect(-13,-4,3,3);c2.fillRect(10,-4,3,3);
+  c2.fillStyle='#444';c2.fillRect(-12,-3,2,2);c2.fillRect(11,-3,2,2);
+  c2.restore();
 }
 
-function send(obj) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
-}
-
-function setConnStatus(text, cls) {
-  const el = document.getElementById('conn-status');
-  el.textContent = text;
-  el.className = cls;
-}
-
-// ══════════════════════════════════════════════
-//  MESSAGE HANDLER
-// ══════════════════════════════════════════════
-function handleMsg(msg) {
-  if (msg.type === 'joined') {
-    myId = msg.id;
-    // First player is host
-    if (!isHost) isHost = true;
-  }
-
-  else if (msg.type === 'lobby') {
-    showScreen('lobbyScreen');
-    stopLoop();
-    renderLobby(msg);
-  }
-
-  else if (msg.type === 'start') {
-    gameState = { ships: msg.ships, bullets: [], powerups: [], frame: 0 };
-    trails = {};
-    particles = [];
-    showScreen(null);
-    document.getElementById('hud').style.display = 'flex';
-    document.getElementById('scoreboard').style.display = 'block';
-    buildWaterCanvas();
-    startLoop();
-    const me = msg.ships.find(s => s.id === myId);
-    if (me) document.getElementById('hudName').textContent = me.name;
-  }
-
-  else if (msg.type === 'state') {
-    if (!gameState) return;
-    gameState.ships    = msg.ships;
-    gameState.bullets  = msg.bullets;
-    gameState.powerups = msg.powerups;
-    gameState.frame    = msg.frame;
-  }
-
-  else if (msg.type === 'gameOver') {
-    stopLoop();
-    document.getElementById('hud').style.display = 'none';
-    document.getElementById('scoreboard').style.display = 'none';
-
-    if (msg.winnerId === myId) {
-      const me = msg.ships?.find(s => s.id === myId);
-      document.getElementById('winStats').textContent =
-        me ? `KILLS: ${me.kills}  SHOTS: ${me.shots}` : '';
-      showScreen('winScreen');
-    } else {
-      document.getElementById('goTitle').textContent =
-        msg.winner ? `${msg.winner} WINS!` : 'DRAW!';
-      const me = msg.ships?.find(s => s.id === myId);
-      document.getElementById('goStats').textContent =
-        me ? `YOUR KILLS: ${me.kills}  SHOTS: ${me.shots}` : '';
-      showScreen('gameOverScreen');
+function buildShipCache(){
+  for(let ci=0;ci<SAIL_COLORS.length;ci++)
+    for(let d=0;d<DIRS;d++){
+      const oc=document.createElement('canvas');oc.width=oc.height=SHIP_SIZE;
+      const c2=oc.getContext('2d');c2.imageSmoothingEnabled=false;
+      drawShipToCtx(c2,d,SAIL_COLORS[ci]);shipCache[`${ci}_${d}`]=oc;
     }
-  }
-
-  else if (msg.type === 'killMsg') {
-    addKillMsg(msg.msg, msg.color || '#ffaa00');
-  }
-
-  else if (msg.type === 'error') {
-    document.getElementById('joinError').textContent = msg.msg;
-  }
 }
 
-// ══════════════════════════════════════════════
-//  LOBBY
-// ══════════════════════════════════════════════
-function renderLobby(msg) {
-  const list = document.getElementById('lobbyList');
-  list.innerHTML = '';
-  msg.players.forEach(p => {
-    const row = document.createElement('div');
-    row.className = 'lobby-player';
-    const dot = document.createElement('div');
-    dot.className = 'lobby-dot';
-    dot.style.background = COLORS[p.colorIdx] || '#00ff41';
-    row.appendChild(dot);
-    row.appendChild(document.createTextNode(p.name + (p.id === myId ? ' (YOU)' : '')));
-    list.appendChild(row);
-  });
-
-  const status = document.getElementById('lobbyStatus');
-  const count  = msg.players.length;
-  status.textContent = `${count} / 8 PLAYERS · NEED ${Math.max(0, msg.minPlayers - count)} MORE`;
-
-  const btnStart = document.getElementById('btnStart');
-  btnStart.disabled = count < msg.minPlayers;
-}
-
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 //  WATER
-// ══════════════════════════════════════════════
-function buildWaterCanvas() {
-  const oc  = document.createElement('canvas');
-  oc.width  = W; oc.height = H;
-  const oc2 = oc.getContext('2d');
-  // base ocean gradient, banded in chunky pixel steps (not smooth) to
-  // keep the retro pixel-art look
-  const bands = 24;
-  for (let i = 0; i < bands; i++) {
-    const t = i / (bands - 1);
-    oc2.fillStyle = t < 0.5
-      ? PAL.waterDeep
-      : (t < 0.8 ? PAL.waterMid : PAL.waterShallow);
-    oc2.fillRect(0, Math.floor(i * H / bands), W, Math.ceil(H / bands) + 1);
+// ═══════════════════════════════════════════════════
+let waterCanvas=null,foamPts=[];
+function buildWaterCanvas(){
+  const oc=document.createElement('canvas');oc.width=W;oc.height=H;
+  const c2=oc.getContext('2d');
+  const g=c2.createLinearGradient(0,0,W*0.3,H);
+  g.addColorStop(0,OCEAN.mid);g.addColorStop(0.4,OCEAN.deep);g.addColorStop(1,OCEAN.dark2);
+  c2.fillStyle=g;c2.fillRect(0,0,W,H);
+  for(let i=0;i<18;i++){
+    const rx=Math.random()*W,ry=Math.random()*H;
+    const rg=c2.createRadialGradient(rx,ry,0,rx,ry,80+Math.random()*120);
+    rg.addColorStop(0,'rgba(26,122,181,0.18)');rg.addColorStop(1,'rgba(0,0,0,0)');
+    c2.fillStyle=rg;c2.fillRect(0,0,W,H);
   }
-  // speckled pixel dither for texture
-  oc2.fillStyle = 'rgba(255,255,255,0.04)';
-  for (let i = 0; i < 900; i++) {
-    const x = Math.floor(Math.random() * W / PS) * PS;
-    const y = Math.floor(Math.random() * H / PS) * PS;
-    oc2.fillRect(x, y, PS, PS);
-  }
-  waterCanvas = oc;
+  c2.fillStyle='rgba(77,217,255,0.07)';
+  for(let i=0;i<200;i++){c2.beginPath();c2.arc(Math.random()*W,Math.random()*H,Math.random()*3+0.5,0,Math.PI*2);c2.fill();}
+  waterCanvas=oc;
 }
-
-function drawWater(frame) {
-  ctx.drawImage(waterCanvas, 0, 0);
-
-  // animated foam wave-lines, drifting sideways in staggered rows
-  for (let y = 16; y < H; y += 36) {
-    const offset = Math.sin(frame * 0.035 + y * 0.04) * 8;
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = PAL.foamDim;
-    for (let x = 0; x < W; x += 24) {
-      const wx = (x + offset + frame * 0.4) % W;
-      ctx.fillRect(Math.round(wx), y, PS*2, PS/2);
-    }
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = PAL.foam;
-    for (let x = 12; x < W; x += 24) {
-      const wx = (x - offset*1.4 + frame * 0.25) % W;
-      ctx.fillRect(Math.round(wx), y + 10, PS, PS/2);
+function initFoam(){
+  foamPts=[];
+  for(let i=0;i<22;i++) foamPts.push({x:Math.random()*W,y:Math.random()*H,r:18+Math.random()*40,spd:0.15+Math.random()*0.25,phase:Math.random()*Math.PI*2,alpha:0.04+Math.random()*0.08});
+}
+function drawWater(f){
+  ctx.drawImage(waterCanvas,0,0);
+  for(let row=0;row<14;row++){
+    const y0=row*44+10,t=f*0.018+row*0.7;
+    for(let seg=0;seg<16;seg++){
+      ctx.globalAlpha=Math.max(0,0.07+Math.sin(t*0.9+seg*0.5)*0.04);
+      ctx.fillStyle=OCEAN.foam;
+      ctx.fillRect(Math.round((seg*58+Math.sin(t+seg*1.1)*18)%W),y0,Math.round(22+Math.sin(t*1.3+seg)*8),2);
     }
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha=1;
+  for(const f2 of foamPts){
+    f2.x=(f2.x+f2.spd)%W;
+    ctx.globalAlpha=f2.alpha+Math.sin(f*0.03+f2.phase)*0.015;
+    ctx.fillStyle=OCEAN.foam;ctx.beginPath();ctx.ellipse(f2.x,f2.y,f2.r,f2.r*0.35,0,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  if(f%3===0){ctx.fillStyle=OCEAN.shimmer;for(let i=0;i<6;i++){ctx.globalAlpha=Math.random()*0.25;ctx.fillRect(Math.round(Math.random()*W),Math.round(Math.random()*H),2,2);}ctx.globalAlpha=1;}
 }
 
-// ══════════════════════════════════════════════
-//  CLOUDS  (drifting shadows cast on the water)
-// ══════════════════════════════════════════════
-const CLOUD_DEFS = [
-  { y: 70,  speed: 0.18, scale: 1.4, phase: 0   },
-  { y: 220, speed: 0.11, scale: 1.0, phase: 240 },
-  { y: 380, speed: 0.22, scale: 1.7, phase: 480 },
-  { y: 500, speed: 0.14, scale: 1.1, phase: 700 },
-];
-function drawClouds(frame) {
-  ctx.globalAlpha = 0.16;
-  for (const c of CLOUD_DEFS) {
-    const span = W + 220;
-    const x = ((frame * c.speed + c.phase) % span) - 110;
-    const s = c.scale;
-    ctx.fillStyle = PAL.cloud;
-    // chunky pixel "cumulus" cluster, built from a few overlapping blocks
-    const blocks = [
-      [0, 0, 60, 18], [14, -8, 40, 16], [34, 4, 36, 14],
-      [-10, 6, 30, 12], [50, 8, 26, 10],
-    ];
-    for (const [bx, by, bw, bh] of blocks) {
-      ctx.fillRect(
-        Math.round(x + bx*s), Math.round(c.y + by*s),
-        Math.round(bw*s/PS)*PS, Math.round(bh*s/PS)*PS
-      );
-    }
+// ═══════════════════════════════════════════════════
+//  PARTICLES
+// ═══════════════════════════════════════════════════
+let particles=[];
+const EXP_C=['#ff6600','#ff9900','#ffcc00','#ffffff','#ff3300','#ffdd88'];
+const SPL_C=['#7dd4f0','#aaeeff','#4dd9ff','#ffffff'];
+
+function spawnExplosion(x,y,big=false){
+  for(let i=0;i<(big?24:12);i++){const a=Math.random()*Math.PI*2,s=1+Math.random()*(big?5:3);particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:0.025+Math.random()*0.04,size:big?2+Math.random()*5:1+Math.random()*3,color:EXP_C[Math.floor(Math.random()*EXP_C.length)],type:'exp'});}
+  for(let i=0;i<(big?8:4);i++){const a=Math.random()*Math.PI*2;particles.push({x:x+Math.cos(a)*5,y:y+Math.sin(a)*5,vx:Math.cos(a)*0.6,vy:Math.sin(a)*0.6-0.4,life:1,decay:0.015,size:5+Math.random()*8,color:'#555',type:'smoke'});}
+}
+function spawnSplash(x,y){for(let i=0;i<8;i++){const a=Math.random()*Math.PI*2;particles.push({x,y,vx:Math.cos(a)*(0.5+Math.random()*2),vy:Math.sin(a)*(0.5+Math.random()*2)-1,life:1,decay:0.04+Math.random()*0.03,size:1+Math.random()*3,color:SPL_C[Math.floor(Math.random()*SPL_C.length)],type:'splash'});}}
+function spawnMuzzle(x,y,angle){for(let i=0;i<6;i++){const a=angle+(Math.random()-0.5)*0.6,s=2+Math.random()*4;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,decay:0.12,size:2+Math.random()*3,color:i<3?'#ffee44':'#ff8800',type:'flash'});}}
+function updateParticles(){
+  particles=particles.filter(p=>p.life>0);
+  for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vx*=0.93;p.vy*=0.93;p.life-=p.decay;if(p.type==='smoke')p.size+=0.2;}
+}
+function drawParticles(){
+  for(const p of particles){
+    ctx.globalAlpha=p.life*(p.type==='smoke'?0.35:1);ctx.fillStyle=p.color;
+    const s=Math.ceil(p.size);
+    if(p.type==='smoke'){ctx.beginPath();ctx.arc(Math.round(p.x),Math.round(p.y),s,0,Math.PI*2);ctx.fill();}
+    else ctx.fillRect(Math.round(p.x-s/2),Math.round(p.y-s/2),s,s);
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha=1;
 }
 
-// ══════════════════════════════════════════════
-//  SEAGULLS  (small flying pixel sprites overhead)
-// ══════════════════════════════════════════════
-const GULL_DEFS = [
-  { speed: 1.1, ampl: 30, baseY: 90,  phase: 0   },
-  { speed: 0.8, ampl: 18, baseY: 160, phase: 900 },
-  { speed: 1.4, ampl: 24, baseY: 60,  phase: 1700 },
-];
-function drawSeagulls(frame) {
-  ctx.fillStyle = PAL.gull;
-  for (const g of GULL_DEFS) {
-    const span = W + 160;
-    const t = (frame * g.speed + g.phase) % span;
-    const x = t - 80;
-    const y = g.baseY + Math.sin(frame * 0.05 + g.phase) * g.ampl * 0.2;
-    const flap = Math.sin(frame * 0.35 + g.phase) > 0 ? 4 : 1; // wing up/down
-    // tiny pixel "M" / gull-wing silhouette
-    ctx.fillRect(Math.round(x), Math.round(y), PS, PS);
-    ctx.fillRect(Math.round(x) - PS*2, Math.round(y) - flap, PS*2, PS);
-    ctx.fillRect(Math.round(x) + PS,   Math.round(y) - flap, PS*2, PS);
+// ═══════════════════════════════════════════════════
+//  SHIP DRAW
+// ═══════════════════════════════════════════════════
+let trails={};
+function angleToDir(a){return Math.round(((a+Math.PI/2)/(Math.PI*2)+1)%1*DIRS)%DIRS;}
+
+function drawShip(ship,f,showUI=true){
+  if(ship.dead) return;
+  const isMe=ship.id===myId;
+  const ci=(ship.colorIdx||0)%SAIL_COLORS.length;
+  const sprite=shipCache[`${ci}_${angleToDir(ship.angle)}`];
+  if(!sprite) return;
+  const sx=Math.round(ship.x),sy=Math.round(ship.y);
+  if(!trails[ship.id]) trails[ship.id]=[];
+  const trail=trails[ship.id];
+  if(Math.hypot(ship.vx||0,ship.vy||0)>0.3) trail.push({x:sx,y:sy});
+  if(trail.length>18) trail.shift();
+  const wa=ship.angle+Math.PI;
+  for(let i=0;i<trail.length;i++){ctx.globalAlpha=(i/trail.length)*0.22;ctx.strokeStyle=OCEAN.foam;ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(trail[i].x,trail[i].y,(i+1)*1.4,(i+1)*0.5,wa,0,Math.PI*2);ctx.stroke();}
+  ctx.globalAlpha=1;
+  if(ship.activeShield>0){ctx.globalAlpha=0.55+Math.sin(f*0.14)*0.2;ctx.strokeStyle=PU_COL.shield;ctx.lineWidth=3;ctx.beginPath();ctx.arc(sx,sy,30,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}
+  ctx.drawImage(sprite,sx-SHIP_SIZE/2,sy-SHIP_SIZE/2);
+  if(showUI){
+    if(isMe){ctx.strokeStyle='rgba(255,215,128,0.4)';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(sx,sy,28,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+    const bw=38,bh=5,bx=sx-bw/2,by=sy-34,pct=ship.hp/MAX_HP;
+    ctx.fillStyle='#0a1a28';ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle=pct>0.5?'#4dd9ff':pct>0.25?'#ffaa33':'#ff5544';ctx.fillRect(bx,by,Math.round(bw*pct),bh);
+    ctx.strokeStyle='#0d3d5c';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+    ctx.fillStyle=isMe?'#ffd780':'#aabbcc';ctx.font='5px "Press Start 2P",monospace';ctx.textAlign='center';
+    ctx.fillText((ship.name||'').substring(0,10),sx,by-3);ctx.textAlign='left';
   }
 }
-
-// ══════════════════════════════════════════════
-//  SHIP DRAWING
-// ══════════════════════════════════════════════
-function drawShipSprite(cx, cy, angle, hullColor, isMe, frame) {
-  const cannonColor = isMe ? '#00ff41' : '#ffffff';
-  const flutter = Math.sin(frame * 0.12) * 1; // sail/flag flutter offset
-  const rows = SHIP_ROWS;
-  const cols = rows[0].length;
-  const rLen = rows.length;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(angle);
-  const ox = -(cols * PS) / 2;
-  const oy = -(rLen * PS) / 2;
-  for (let r = 0; r < rLen; r++) {
-    for (let c = 0; c < cols; c++) {
-      const ch = rows[r][c];
-      const x = ox + c*PS, y = oy + r*PS;
-      if (ch === 'H') {
-        ctx.fillStyle = PAL.hullDark;
-        ctx.fillRect(x, y, PS, PS);
-      } else if (ch === 'D') {
-        ctx.fillStyle = PAL.deck;
-        ctx.fillRect(x, y, PS, PS);
-        ctx.fillStyle = 'rgba(0,0,0,0.15)';
-        ctx.fillRect(x + PS - 1, y, 1, PS);
-      } else if (ch === 'S') {
-        // white sail, with a subtle flutter-shaded trailing edge
-        ctx.fillStyle = PAL.sail;
-        ctx.fillRect(x, y, PS, PS);
-        ctx.fillStyle = PAL.sailShade;
-        ctx.fillRect(x, y + PS - 1, PS, 1);
-      } else if (ch === 'M') {
-        ctx.fillStyle = PAL.mast;
-        ctx.fillRect(x, y, PS, PS);
-      } else if (ch === 'F') {
-        // pirate-style flag, colored per ship, flutters at the masthead
-        ctx.fillStyle = hullColor;
-        ctx.fillRect(x, y - Math.round(flutter), PS, PS - 1);
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(x + 1, y - Math.round(flutter) + 1, 1, 1); // tiny skull-mark fleck
-      } else if (ch === 'C') {
-        ctx.fillStyle = cannonColor;
-        ctx.fillRect(x, y, PS, PS);
-      }
-    }
-  }
-  // accent stripe along the hull side, tinted with the player's color
-  ctx.fillStyle = hullColor;
-  ctx.globalAlpha = 0.5;
-  ctx.fillRect(ox + 2*PS, oy + (4)*PS, PS, PS);
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-function drawShip(ship, frame) {
-  if (ship.dead) return;
-  const isMe = ship.id === myId;
-  const color = COLORS[ship.colorIdx] || '#888';
-
-  // Trail
-  if (!trails[ship.id]) trails[ship.id] = [];
-  const trail = trails[ship.id];
-  trail.push({ x: ship.x, y: ship.y, age: 0 });
-  if (trail.length > 14) trail.shift();
-  for (const t of trail) t.age++;
-
-  for (let i = 0; i < trail.length; i++) {
-    const t = trail[i];
-    ctx.globalAlpha = (i / trail.length) * 0.25;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(Math.round(t.x)-1, Math.round(t.y)-1, 2, 2);
-  }
-  ctx.globalAlpha = 1;
-
-  // Shield
-  if (ship.activeShield > 0) {
-    const pulse = Math.sin(frame * 0.15) * 0.3 + 0.7;
-    ctx.globalAlpha = pulse * 0.4;
-    ctx.strokeStyle = PAL.powerup.shield;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(Math.round(ship.x), Math.round(ship.y), 22, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  drawShipSprite(Math.round(ship.x), Math.round(ship.y), ship.angle, color, isMe, frame);
-
-  // Health bar
-  const bw = 36, bh = 4;
-  const bx = Math.round(ship.x - bw/2);
-  const by = Math.round(ship.y - 24);
-  const pct = ship.hp / MAX_HP;
-  ctx.fillStyle = '#111';
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.fillStyle = pct > 0.5 ? PAL.hp100 : pct > 0.25 ? PAL.hp50 : PAL.hp25;
-  ctx.fillRect(bx, by, Math.round(bw * pct), bh);
-  ctx.strokeStyle = '#0a0a0a';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(bx, by, bw, bh);
-
-  // Name tag
-  ctx.fillStyle = isMe ? '#00ff41' : '#aaaaaa';
-  ctx.font = '5px "Press Start 2P", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText((ship.name || '').substring(0,10), Math.round(ship.x), by - 3);
-  ctx.textAlign = 'left';
-}
-
-// ══════════════════════════════════════════════
-//  BULLETS
-// ══════════════════════════════════════════════
-function drawBullets(bullets) {
-  for (const b of bullets) {
-    ctx.fillStyle = PAL.bulletGlow;
-    ctx.fillRect(Math.round(b.x)-4, Math.round(b.y)-4, 8, 8);
-    ctx.fillStyle = PAL.bullet;
-    ctx.fillRect(Math.round(b.x)-2, Math.round(b.y)-2, 4, 4);
+function drawBullets(bullets){
+  for(const b of bullets){
+    const bx=Math.round(b.x),by=Math.round(b.y);
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(bx+2,by+3,4,2,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#2a2a2a';ctx.beginPath();ctx.arc(bx,by,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#555';ctx.beginPath();ctx.arc(bx-1,by-1,2,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,180,50,0.4)';ctx.fillRect(bx-Math.round(b.vx||0)*2,by-Math.round(b.vy||0)*2,2,2);
   }
 }
-
-// ══════════════════════════════════════════════
-//  POWER-UPS
-// ══════════════════════════════════════════════
-function drawPowerups(pus, frame) {
-  for (const pu of pus) {
-    const pulse = Math.sin(frame * 0.08) * 0.4 + 0.6;
-    const col   = PAL.powerup[pu.type] || '#fff';
-    ctx.save();
-    ctx.translate(Math.round(pu.x), Math.round(pu.y));
-    ctx.globalAlpha = pulse * 0.5;
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 14 + Math.sin(frame*0.08)*2, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#0a0a0f';
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2;
-    ctx.fillRect(-9,-9,18,18);
-    ctx.strokeRect(-9,-9,18,18);
-    ctx.fillStyle = col;
-    if (pu.type === 'shield') {
-      ctx.fillRect(-4,-5,8,2); ctx.fillRect(-5,-3,10,2);
-      ctx.fillRect(-4,-1,8,2); ctx.fillRect(-3,1,6,2); ctx.fillRect(-2,3,4,2);
-    } else if (pu.type === 'rapid') {
-      ctx.fillRect(1,-6,3,5); ctx.fillRect(-3,-1,8,2); ctx.fillRect(-4,1,3,5);
-    } else {
-      ctx.fillRect(-5,-2,3,3); ctx.fillRect(-1,-2,3,3); ctx.fillRect(3,-2,3,3);
-    }
+function drawPowerups(pus,f){
+  for(const pu of pus){
+    const px=Math.round(pu.x),py=Math.round(pu.y),bob=Math.sin(f*0.07+pu.id)*3,col=PU_COL[pu.type]||'#fff',pulse=0.5+Math.sin(f*0.08+pu.id)*0.25;
+    ctx.save();ctx.translate(px,py+bob);
+    ctx.globalAlpha=pulse*0.35;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle='#7d4e28';ctx.fillRect(-9,-10,18,20);
+    ctx.fillStyle=col;ctx.fillRect(-10,-10,20,3);ctx.fillRect(-10,-1,20,3);ctx.fillRect(-10,7,20,3);
+    ctx.fillStyle='#5c3a1e';ctx.fillRect(-2,-10,2,20);ctx.fillRect(3,-10,2,20);
+    ctx.fillStyle=col;ctx.font='10px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(PU_ICONS[pu.type]||'?',0,-1);ctx.textBaseline='alphabetic';ctx.textAlign='left';
     ctx.restore();
   }
 }
 
-// ══════════════════════════════════════════════
-//  PARTICLES
-// ══════════════════════════════════════════════
-function spawnExplosion(x, y, big=false) {
-  const count = big ? 20 : 10;
-  for (let i = 0; i < count; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const s = 1 + Math.random() * (big ? 4 : 2.5);
-    particles.push({
-      x, y,
-      vx: Math.cos(a)*s, vy: Math.sin(a)*s,
-      life: 1,
-      decay: 0.03 + Math.random()*0.04,
-      size: big ? (2+Math.random()*4) : (1+Math.random()*2),
-      color: PAL.explosion[Math.floor(Math.random()*PAL.explosion.length)],
-    });
-  }
+// ═══════════════════════════════════════════════════
+//  DEMO BATTLE
+// ═══════════════════════════════════════════════════
+const DEMO_NAMES=['BLACKBEARD','RED ANNE','CALICO','MORGAN','DAVEY','HORNIGOLD'];
+let demoShips=[],demoBullets=[],demoFrame=0,demoNextBullet=0;
+
+function initDemoShips(){
+  demoShips=[];
+  for(let i=0;i<6;i++) demoShips.push({id:'d'+i,name:DEMO_NAMES[i],colorIdx:i,x:80+Math.random()*(W-160),y:80+Math.random()*(H-160),angle:Math.random()*Math.PI*2,vx:0,vy:0,hp:MAX_HP,dead:false,fireCd:Math.floor(Math.random()*60),respawnTimer:0,activeShield:0});
 }
-
-function updateParticles() {
-  particles = particles.filter(p => p.life > 0);
-  for (const p of particles) {
-    p.x += p.vx; p.y += p.vy;
-    p.vx *= 0.94; p.vy *= 0.94;
-    p.life -= p.decay;
-  }
-}
-
-function drawParticles() {
-  for (const p of particles) {
-    ctx.globalAlpha = p.life;
-    ctx.fillStyle = p.color;
-    const s = Math.ceil(p.size);
-    ctx.fillRect(Math.round(p.x-s/2), Math.round(p.y-s/2), s, s);
-  }
-  ctx.globalAlpha = 1;
-}
-
-// Track previous ship HP to detect damage for local explosions
-let prevHP = {};
-
-// ══════════════════════════════════════════════
-//  HUD UPDATE
-// ══════════════════════════════════════════════
-function updateHUD(me) {
-  const pct = me.hp / MAX_HP;
-  const bar = document.getElementById('hudHP');
-  bar.style.width = (pct*100).toFixed(1)+'%';
-  bar.className = 'health-bar' + (pct<=0.25?' low':pct<=0.5?' mid':'');
-  document.getElementById('hudHPVal').textContent = me.hp + ' / ' + MAX_HP;
-
-  const puEl = document.getElementById('hudPU');
-  if (!me.inventory.length && !me.activeShield && !me.activeRapid && !me.activeTriple) {
-    puEl.textContent = '—';
-  } else {
-    let html = '';
-    for (let i = 0; i < 3; i++) {
-      const pu  = me.inventory[i];
-      const col = pu ? PAL.powerup[pu] : '#2a5a2a';
-      html += `<span class="powerup-slot ${pu?'active':''}" style="border-color:${col};color:${col}">${pu ? PU_ICONS[pu] : i+1}</span>`;
+function updateDemo(){
+  demoFrame++;
+  const alive=demoShips.filter(s=>!s.dead);
+  for(const s of demoShips){
+    if(s.dead){if(--s.respawnTimer<=0){s.dead=false;s.hp=MAX_HP;s.x=80+Math.random()*(W-160);s.y=80+Math.random()*(H-160);s.angle=Math.random()*Math.PI*2;s.vx=s.vy=0;s.fireCd=30;}continue;}
+    if(s.fireCd>0) s.fireCd--;
+    let best=null,bd=Infinity;
+    for(const t of alive){if(t.id===s.id)continue;const d=Math.hypot(t.x-s.x,t.y-s.y);if(d<bd){bd=d;best=t;}}
+    if(best){
+      let diff=Math.atan2(best.y-s.y,best.x-s.x)-s.angle;
+      while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;
+      s.angle+=Math.sign(diff)*Math.min(0.04,Math.abs(diff));
+      if(bd>180){s.vx+=Math.cos(s.angle)*0.3;s.vy+=Math.sin(s.angle)*0.3;}
+      else if(bd<80){s.vx-=Math.cos(s.angle)*0.2;s.vy-=Math.sin(s.angle)*0.2;}
+      else{const p=s.angle+Math.PI/2;s.vx+=Math.cos(p)*0.15;s.vy+=Math.sin(p)*0.15;}
+      if(s.fireCd<=0&&bd<260){s.fireCd=55+Math.floor(Math.random()*30);const a=s.angle;demoBullets.push({id:demoNextBullet++,x:s.x+Math.cos(a)*18,y:s.y+Math.sin(a)*18,vx:Math.cos(a)*6,vy:Math.sin(a)*6,life:90,ownerId:s.id});spawnMuzzle(s.x,s.y,s.angle);}
     }
-    if (me.activeShield>0) html += ` <span style="color:${PAL.powerup.shield}">🛡${Math.ceil(me.activeShield/60)}s</span>`;
-    if (me.activeRapid >0) html += ` <span style="color:${PAL.powerup.rapid}">⚡${Math.ceil(me.activeRapid/60)}s</span>`;
-    if (me.activeTriple>0) html += ` <span style="color:${PAL.powerup.triple}">🔱${Math.ceil(me.activeTriple/60)}s</span>`;
-    puEl.innerHTML = html;
+    s.vx*=0.88;s.vy*=0.88;const spd=Math.hypot(s.vx,s.vy);if(spd>1.8){s.vx=s.vx/spd*1.8;s.vy=s.vy/spd*1.8;}
+    s.x+=s.vx;s.y+=s.vy;if(s.x<0)s.x+=W;if(s.x>W)s.x-=W;if(s.y<0)s.y+=H;if(s.y>H)s.y-=H;
   }
-}
-
-function updateScoreboard(ships) {
-  const sb = document.getElementById('scoreboard');
-  const sorted = [...ships].sort((a,b) => b.kills - a.kills);
-  sb.innerHTML = sorted.map(s => {
-    const cls = (s.id===myId?'me ':'') + (s.dead?'dead ':'');
-    return `<div class="sb-row ${cls}">
-      <span class="sb-name" style="color:${COLORS[s.colorIdx]||'#888'}">${s.name}</span>
-      <span>${s.kills}K</span>
-    </div>`;
-  }).join('');
-}
-
-// ══════════════════════════════════════════════
-//  GAME LOOP (render only)
-// ══════════════════════════════════════════════
-function gameLoop() {
-  animId = requestAnimationFrame(gameLoop);
-  if (!gameState || !waterCanvas) return;
-
-  waterFrame++;
-  const { ships, bullets, powerups, frame } = gameState;
-
-  // Detect explosions from HP drops
-  for (const s of ships) {
-    const prev = prevHP[s.id];
-    if (prev !== undefined && s.hp < prev) {
-      spawnExplosion(s.x, s.y, s.hp <= 0);
-    }
-    if (s.dead && prev !== undefined && prev > 0) {
-      spawnExplosion(s.x, s.y, true);
-    }
-    prevHP[s.id] = s.hp;
-  }
-
-  updateParticles();
-  drawWater(waterFrame);
-  drawClouds(waterFrame);
-  drawPowerups(powerups, frame);
-  drawBullets(bullets);
-  for (const s of ships) drawShip(s, frame);
-  drawParticles();
-  drawSeagulls(waterFrame);
-
-  const me = ships.find(s => s.id === myId);
-  if (me) { updateHUD(me); }
-  updateScoreboard(ships);
-}
-
-function startLoop() {
-  if (!animId) animId = requestAnimationFrame(gameLoop);
-}
-function stopLoop() {
-  if (animId) { cancelAnimationFrame(animId); animId = null; }
-}
-
-// ══════════════════════════════════════════════
-//  INPUT SENDER (60fps)
-// ══════════════════════════════════════════════
-let inputInterval = null;
-
-function startInputLoop() {
-  if (inputInterval) return;
-  inputInterval = setInterval(() => {
-    if (!myId) return;
-    send({
-      type:    'input',
-      left:    !!(keysDown['a'] || keysDown['arrowleft']),
-      right:   !!(keysDown['d'] || keysDown['arrowright']),
-      forward: !!(keysDown['w'] || keysDown['arrowup']),
-      back:    !!(keysDown['s'] || keysDown['arrowdown']),
-      fire:    !!keysDown[' '],
-    });
-  }, 1000/60);
-}
-
-function stopInputLoop() {
-  if (inputInterval) { clearInterval(inputInterval); inputInterval = null; }
-}
-
-// ══════════════════════════════════════════════
-//  KEYBOARD
-// ══════════════════════════════════════════════
-document.addEventListener('keydown', e => {
-  keysDown[e.key.toLowerCase()] = true;
-
-  if (e.key === '1') send({ type:'input', use1:true });
-  if (e.key === '2') send({ type:'input', use2:true });
-  if (e.key === '3') send({ type:'input', use3:true });
-});
-document.addEventListener('keyup', e => { keysDown[e.key.toLowerCase()] = false; });
-window.addEventListener('keydown', e => {
-  if ([' ','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
-});
-
-// ══════════════════════════════════════════════
-//  TOUCH
-// ══════════════════════════════════════════════
-let touchStart = { x: 0, y: 0 };
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  const t = e.touches[0];
-  touchStart.x = t.clientX; touchStart.y = t.clientY;
-  keysDown[' '] = true;
-}, { passive: false });
-canvas.addEventListener('touchmove', e => {
-  e.preventDefault();
-  const t  = e.touches[0];
-  const dx = t.clientX - touchStart.x;
-  const dy = t.clientY - touchStart.y;
-  const th = 20;
-  keysDown['w'] = dy < -th;
-  keysDown['s'] = dy >  th;
-  keysDown['a'] = dx < -th;
-  keysDown['d'] = dx >  th;
-}, { passive: false });
-canvas.addEventListener('touchend', e => {
-  e.preventDefault();
-  ['w','s','a','d',' '].forEach(k => keysDown[k] = false);
-}, { passive: false });
-
-// ══════════════════════════════════════════════
-//  SCREEN MANAGEMENT
-// ══════════════════════════════════════════════
-function showScreen(id) {
-  ['joinScreen','lobbyScreen','gameOverScreen','winScreen'].forEach(s => {
-    document.getElementById(s).classList.toggle('hidden', s !== id);
+  demoBullets=demoBullets.filter(b=>{
+    b.x+=b.vx;b.y+=b.vy;b.life--;
+    if(b.x<0)b.x+=W;if(b.x>W)b.x-=W;if(b.y<0)b.y+=H;if(b.y>H)b.y-=H;
+    if(b.life<=0){spawnSplash(b.x,b.y);return false;}
+    for(const s of demoShips){if(s.dead||s.id===b.ownerId)continue;if(Math.hypot(s.x-b.x,s.y-b.y)<14){s.hp-=20;spawnExplosion(b.x,b.y,false);if(s.hp<=0){s.hp=0;s.dead=true;s.respawnTimer=180;spawnExplosion(s.x,s.y,true);}return false;}}
+    return true;
   });
 }
-
-// ══════════════════════════════════════════════
-//  KILL FEED
-// ══════════════════════════════════════════════
-function addKillMsg(msg, color='#ffaa00') {
-  const feed = document.getElementById('kill-feed');
-  const el = document.createElement('div');
-  el.className = 'kill-msg';
-  el.textContent = msg;
-  el.style.borderColor = color;
-  el.style.color = color;
-  feed.appendChild(el);
-  setTimeout(() => el.remove(), 3100);
+function renderDemo(f){
+  drawWater(f);updateDemo();updateParticles();
+  drawBullets(demoBullets);for(const s of demoShips)drawShip(s,f,true);
+  drawParticles();
 }
 
-// ══════════════════════════════════════════════
-//  BUTTONS
-// ══════════════════════════════════════════════
-document.getElementById('btnJoin').onclick = () => {
-  const name = document.getElementById('nameInput').value.trim();
-  if (!name) { document.getElementById('joinError').textContent = 'Enter a ship name!'; return; }
-  document.getElementById('joinError').textContent = '';
-  send({ type: 'join', name });
-  startInputLoop();
+// ═══════════════════════════════════════════════════
+//  HUD
+// ═══════════════════════════════════════════════════
+function updateHUD(me){
+  const pct=me.hp/MAX_HP,bar=document.getElementById('hudHP');
+  bar.style.width=(pct*100).toFixed(1)+'%';
+  bar.className='hp-bar'+(pct<=0.25?' low':pct<=0.5?' mid':'');
+  document.getElementById('hudHPVal').textContent=me.hp+' / '+MAX_HP;
+  const puEl=document.getElementById('hudPU');
+  if(!me.inventory?.length&&!me.activeShield&&!me.activeRapid&&!me.activeTriple){puEl.textContent='—';return;}
+  let html='';
+  for(let i=0;i<3;i++){const pu=me.inventory?.[i],col=pu?PU_COL[pu]:'#5c3a1e';html+=`<span class="pu-slot ${pu?'on':''}" style="border-color:${col};color:${col}">${pu?PU_ICONS[pu]:i+1}</span>`;}
+  if(me.activeShield>0)html+=` <span style="color:${PU_COL.shield}">🛡${Math.ceil(me.activeShield/60)}s</span>`;
+  if(me.activeRapid >0)html+=` <span style="color:${PU_COL.rapid}">⚡${Math.ceil(me.activeRapid/60)}s</span>`;
+  if(me.activeTriple>0)html+=` <span style="color:${PU_COL.triple}">🔱${Math.ceil(me.activeTriple/60)}s</span>`;
+  puEl.innerHTML=html;
+}
+function updateScoreboard(ships){
+  document.getElementById('scoreboard').innerHTML=[...ships].sort((a,b)=>b.kills-a.kills).map(s=>`<div class="sb-row ${s.id===myId?'me ':''} ${s.dead?'dead':''}"><span class="sb-name" style="color:${SAIL_COLORS[s.colorIdx%SAIL_COLORS.length]}">${s.name}</span><span>${s.kills}K</span></div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════
+//  GAME STATE & MAIN LOOP
+// ═══════════════════════════════════════════════════
+let myId=null,myRoomCode=null,gameState=null,keysDown={},animId=null;
+let prevHP={},prevBulletIds=new Set(),frame=0,currentMode='menu';
+let lobbyPlayers=[],lobbySpinF=0;
+
+function gameLoop(){
+  animId=requestAnimationFrame(gameLoop);frame++;
+  if(currentMode==='menu'||currentMode==='lobby'||currentMode==='joincode'){
+    renderDemo(frame);
+    ctx.fillStyle='rgba(5,15,25,0.32)';ctx.fillRect(0,0,W,H);
+    if(currentMode==='lobby'){
+      lobbySpinF++;
+      const dir=Math.floor((lobbySpinF/8)%DIRS);
+      for(const p of lobbyPlayers){
+        const el=document.getElementById('lsp_'+p.id);
+        if(!el) continue;
+        const c2=el.getContext('2d');c2.clearRect(0,0,28,28);
+        const sp=shipCache[`${(p.colorIdx||0)%SAIL_COLORS.length}_${dir}`];
+        if(sp) c2.drawImage(sp,14-SHIP_SIZE/2,14-SHIP_SIZE/2);
+      }
+    }
+  }
+  else if(currentMode==='game'){
+    if(!gameState||!waterCanvas) return;
+    const{ships,bullets,powerups}=gameState;
+    for(const s of ships){const prev=prevHP[s.id];if(prev!==undefined){if(s.hp<prev)spawnExplosion(s.x,s.y,false);if(s.dead&&prev>0)spawnExplosion(s.x,s.y,true);}prevHP[s.id]=s.hp;}
+    const curIds=new Set(bullets.map(b=>b.id));
+    for(const b of bullets){if(!prevBulletIds.has(b.id)){const o=ships.find(s=>s.id===b.ownerId);if(o)spawnMuzzle(o.x,o.y,o.angle);}}
+    for(const id of prevBulletIds){if(!curIds.has(id)){const b=bullets.find(x=>x.id===id);if(b)spawnSplash(b.x,b.y);}}
+    prevBulletIds=curIds;
+    updateParticles();drawWater(frame);drawPowerups(powerups,frame);drawBullets(bullets);
+    for(const s of ships)drawShip(s,frame,true);drawParticles();
+    const me=ships.find(s=>s.id===myId);if(me)updateHUD(me);updateScoreboard(ships);
+  }
+}
+function startLoop(){if(!animId)animId=requestAnimationFrame(gameLoop);}
+
+// ═══════════════════════════════════════════════════
+//  WEBSOCKET
+// ═══════════════════════════════════════════════════
+const WS_URL=location.protocol==='https:'?'wss://'+location.host:'ws://'+location.host;
+let ws=null;
+function connect(){
+  ws=new WebSocket(WS_URL);
+  ws.onopen =()=>setConn('ONLINE','ok');
+  ws.onclose=()=>{setConn('DISCONNECTED','err');setTimeout(connect,3000);};
+  ws.onerror=()=>setConn('ERROR','err');
+  ws.onmessage=e=>{try{handleMsg(JSON.parse(e.data));}catch{}};
+}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function setConn(t,c){const el=document.getElementById('conn-status');el.textContent=t;el.className=c;}
+
+function handleMsg(msg){
+  if(msg.type==='joined'){
+    myId=msg.id; myRoomCode=msg.code;
+    // update URL without reload so friends can copy it
+    const newUrl=location.origin+'?room='+msg.code;
+    history.replaceState({},'',newUrl);
+  }
+  else if(msg.type==='lobby'){
+    currentMode='lobby'; lobbyPlayers=msg.players;
+    showScreen('lobbyScreen'); renderLobby(msg);
+  }
+  else if(msg.type==='start'){
+    currentMode='game';
+    gameState={ships:msg.ships,bullets:[],powerups:[],frame:0};
+    trails={};particles=[];prevHP={};prevBulletIds=new Set();
+    showScreen(null);
+    document.getElementById('hud').style.display='flex';
+    document.getElementById('scoreboard').style.display='block';
+    buildWaterCanvas();initFoam();
+    const me=msg.ships.find(s=>s.id===myId);if(me)document.getElementById('hudName').textContent=me.name;
+  }
+  else if(msg.type==='state'){
+    if(!gameState)return;
+    gameState.ships=msg.ships;gameState.bullets=msg.bullets;gameState.powerups=msg.powerups;gameState.frame=msg.frame;
+  }
+  else if(msg.type==='gameOver'){
+    currentMode='lobby';
+    document.getElementById('hud').style.display='none';
+    document.getElementById('scoreboard').style.display='none';
+    if(msg.winnerId===myId){
+      const me=msg.ships?.find(s=>s.id===myId);
+      document.getElementById('winStats').textContent=me?`KILLS: ${me.kills}  SHOTS: ${me.shots}`:'';
+      showScreen('winScreen');
+    } else {
+      document.getElementById('goTitle').textContent=msg.winner?`${msg.winner} WINS!`:'DRAW!';
+      const me=msg.ships?.find(s=>s.id===myId);
+      document.getElementById('goStats').textContent=me?`YOUR KILLS: ${me.kills}  SHOTS: ${me.shots}`:'';
+      showScreen('gameOverScreen');
+    }
+  }
+  else if(msg.type==='killMsg'){addKillMsg(msg.msg,msg.color||'#ffcc55');}
+  else if(msg.type==='error'){
+    document.getElementById('joinCodeErr').textContent=msg.msg;
+    document.getElementById('createErr').textContent=msg.msg;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  LOBBY RENDER
+// ═══════════════════════════════════════════════════
+function renderLobby(msg){
+  lobbyPlayers=msg.players;
+  const list=document.getElementById('lobbyList');list.innerHTML='';
+  msg.players.forEach(p=>{
+    const row=document.createElement('div');row.className='lobby-player';
+    const cv=document.createElement('canvas');cv.width=28;cv.height=28;cv.id='lsp_'+p.id;cv.style.cssText='flex-shrink:0;image-rendering:pixelated;';
+    const dot=document.createElement('div');dot.className='lobby-dot';dot.style.background=SAIL_COLORS[p.colorIdx%SAIL_COLORS.length];
+    const nm=document.createElement('span');nm.textContent=p.name+(p.id===myId?' (YOU)':'');
+    row.appendChild(cv);row.appendChild(dot);row.appendChild(nm);
+    list.appendChild(row);
+  });
+  const count=msg.players.length;
+  document.getElementById('lobbyStatus').textContent=`${count} / 8 CAPTAINS ABOARD`;
+  document.getElementById('btnStart').disabled=count<msg.minPlayers;
+  if(msg.code){
+    document.getElementById('lobbyCodeDisplay').textContent=msg.code;
+    document.getElementById('battleTicker').textContent=`⚔ DEMO BATTLE · ROOM ${msg.code} · ${count} PLAYER${count!==1?'S':''} IN HARBOUR`;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  ROOM CREATION
+// ═══════════════════════════════════════════════════
+async function createRoom(){
+  try {
+    const res=await fetch('/api/create-room',{method:'POST'});
+    const data=await res.json();
+    const code=data.code;
+    const link=location.origin+'?room='+code;
+    document.getElementById('displayCode').textContent=code;
+    document.getElementById('shareUrl').textContent=link;
+    document.getElementById('btnCopyLink').onclick=()=>copyText(link,'btnCopyLink');
+    showScreen('roomCreatedScreen');
+    return code;
+  } catch(e){
+    alert('Could not create room. Is the server running?');
+  }
+}
+
+function copyText(text,btnId){
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.getElementById(btnId);
+    if(!btn)return;
+    const orig=btn.textContent;btn.textContent='COPIED!';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent=orig;btn.classList.remove('copied');},2000);
+  }).catch(()=>alert('Copy failed — please copy manually:\n'+text));
+}
+
+// ═══════════════════════════════════════════════════
+//  AUTO-JOIN FROM URL
+// ═══════════════════════════════════════════════════
+function getRoomFromURL(){
+  const p=new URLSearchParams(location.search);
+  return (p.get('room')||'').toUpperCase().trim();
+}
+
+// ═══════════════════════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════════════════════
+let inputInterval=null;
+function startInputLoop(){
+  if(inputInterval)return;
+  inputInterval=setInterval(()=>{
+    if(!myId)return;
+    send({type:'input',left:!!(keysDown['a']||keysDown['arrowleft']),right:!!(keysDown['d']||keysDown['arrowright']),forward:!!(keysDown['w']||keysDown['arrowup']),back:!!(keysDown['s']||keysDown['arrowdown']),fire:!!keysDown[' ']});
+  },1000/60);
+}
+document.addEventListener('keydown',e=>{keysDown[e.key.toLowerCase()]=true;if(e.key==='1')send({type:'input',use1:true});if(e.key==='2')send({type:'input',use2:true});if(e.key==='3')send({type:'input',use3:true});});
+document.addEventListener('keyup',e=>{keysDown[e.key.toLowerCase()]=false;});
+window.addEventListener('keydown',e=>{if([' ','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();});
+let tS={x:0,y:0};
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];tS.x=t.clientX;tS.y=t.clientY;keysDown[' ']=true;},{passive:false});
+canvas.addEventListener('touchmove', e=>{e.preventDefault();const t=e.touches[0];const dx=t.clientX-tS.x,dy=t.clientY-tS.y,th=20;keysDown['w']=dy<-th;keysDown['s']=dy>th;keysDown['a']=dx<-th;keysDown['d']=dx>th;},{passive:false});
+canvas.addEventListener('touchend',  e=>{e.preventDefault();['w','s','a','d',' '].forEach(k=>keysDown[k]=false);},{passive:false});
+
+// ═══════════════════════════════════════════════════
+//  UI
+// ═══════════════════════════════════════════════════
+function showScreen(id){
+  ['landingScreen','joinCodeScreen','roomCreatedScreen','lobbyScreen','gameOverScreen','winScreen'].forEach(s=>{
+    document.getElementById(s).style.display=(s===id)?'flex':'none';
+  });
+}
+function addKillMsg(msg,color='#ffcc55'){
+  const feed=document.getElementById('kill-feed');
+  const el=document.createElement('div');el.className='kill-msg';el.textContent=msg;el.style.borderColor=color;el.style.color=color;
+  feed.appendChild(el);setTimeout(()=>el.remove(),3100);
+}
+
+// ═══════════════════════════════════════════════════
+//  BUTTON WIRING
+// ═══════════════════════════════════════════════════
+// Landing
+document.getElementById('btnCreate').onclick=()=>createRoom();
+document.getElementById('btnGoJoin').onclick=()=>{showScreen('joinCodeScreen');currentMode='joincode';};
+
+// Join by code
+document.getElementById('btnJoinCode').onclick=()=>{
+  const code=document.getElementById('codeInput').value.trim().toUpperCase();
+  const name=document.getElementById('nameInputCode').value.trim();
+  if(!code){document.getElementById('joinCodeErr').textContent='Enter a room code!';return;}
+  if(!name){document.getElementById('joinCodeErr').textContent='Enter a ship name!';return;}
+  send({type:'join',code,name});startInputLoop();
+};
+document.getElementById('codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnJoinCode').click();});
+document.getElementById('btnBackToLanding').onclick=()=>{showScreen('landingScreen');currentMode='menu';};
+
+// Room created → enter your own room
+document.getElementById('btnEnterRoom').onclick=()=>{
+  const name=document.getElementById('nameInputCreate').value.trim();
+  const code=document.getElementById('displayCode').textContent.trim();
+  if(!name){document.getElementById('createErr').textContent='Enter a ship name!';return;}
+  send({type:'join',code,name});startInputLoop();
+};
+document.getElementById('nameInputCreate').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnEnterRoom').click();});
+
+// Lobby copy link
+document.getElementById('btnCopyLobby').onclick=()=>{
+  const link=location.origin+'?room='+(myRoomCode||'');
+  copyText(link,'btnCopyLobby');
 };
 
-document.getElementById('nameInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('btnJoin').click();
-});
+// Game
+document.getElementById('btnStart').onclick   =()=>send({type:'startGame'});
+document.getElementById('btnReplay').onclick  =()=>send({type:'restartLobby'});
+document.getElementById('btnWinLobby').onclick=()=>send({type:'restartLobby'});
 
-document.getElementById('btnStart').onclick = () => {
-  send({ type: 'startGame' });
-};
-
-document.getElementById('btnReplay').onclick = () => {
-  send({ type: 'restartLobby' });
-};
-
-document.getElementById('btnWinLobby').onclick = () => {
-  send({ type: 'restartLobby' });
-};
-
-// ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 //  BOOT
-// ══════════════════════════════════════════════
-showScreen('joinScreen');
+// ═══════════════════════════════════════════════════
+buildShipCache();
+buildWaterCanvas();
+initFoam();
+initDemoShips();
+
+// Check if URL already has a room code (friend clicked a link)
+const urlRoom=getRoomFromURL();
+if(urlRoom){
+  // Show join screen pre-filled with code
+  showScreen('joinCodeScreen');
+  currentMode='joincode';
+  document.getElementById('codeInput').value=urlRoom;
+  document.getElementById('codeInput').readOnly=true;
+  document.getElementById('codeInput').style.color='#ffd780';
+} else {
+  showScreen('landingScreen');
+}
+
+startLoop();
 connect();
 </script>
 </body>
