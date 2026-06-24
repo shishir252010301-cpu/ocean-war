@@ -126,7 +126,6 @@
   <canvas id="c" width="900" height="600"></canvas>
   <div id="ui">
 
-    <!-- ═══ LANDING: choose create or join ═══ -->
     <div class="screen" id="landingScreen">
       <div class="card">
         <div class="title">⚓ OCEAN<br>WAR</div>
@@ -138,7 +137,6 @@
       </div>
     </div>
 
-    <!-- ═══ JOIN WITH CODE (manual entry) ═══ -->
     <div class="screen hidden" id="joinCodeScreen">
       <div class="card">
         <div class="title-sm">🔗 JOIN ROOM</div>
@@ -152,7 +150,6 @@
       </div>
     </div>
 
-    <!-- ═══ ROOM CREATED: show code + share link ═══ -->
     <div class="screen hidden" id="roomCreatedScreen">
       <div class="card">
         <div class="title-sm">⚓ ROOM CREATED!</div>
@@ -173,11 +170,9 @@
       </div>
     </div>
 
-    <!-- ═══ LOBBY ═══ -->
     <div class="screen hidden" id="lobbyScreen">
       <div class="card">
         <div class="title-sm">⚓ PIRATE HARBOUR</div>
-        <!-- room code mini display in lobby -->
         <div style="display:flex;align-items:center;gap:10px;width:100%;">
           <div style="flex:1;font-size:6px;color:#a08060;">ROOM CODE</div>
           <div style="font-size:clamp(10px,1.5vw,13px);color:#ffd780;letter-spacing:4px;" id="lobbyCodeDisplay">——</div>
@@ -193,7 +188,6 @@
       <div id="battleTicker">⚔ DEMO BATTLE IN PROGRESS…</div>
     </div>
 
-    <!-- ═══ GAME OVER ═══ -->
     <div class="screen hidden" id="gameOverScreen">
       <div class="card">
         <div class="title" id="goTitle">GAME OVER</div>
@@ -202,7 +196,6 @@
       </div>
     </div>
 
-    <!-- ═══ WIN ═══ -->
     <div class="screen hidden" id="winScreen">
       <div class="card">
         <div class="title" style="color:#ffd700;text-shadow:0 0 14px #ffd700,0 2px 0 #3a2010">🏆 VICTORY!</div>
@@ -211,7 +204,6 @@
       </div>
     </div>
 
-    <!-- HUD -->
     <div id="hud" style="display:none">
       <div class="hud-box">
         <div class="lbl">CAPTAIN</div>
@@ -483,14 +475,15 @@ function updateHUD(me){
   puEl.innerHTML=html;
 }
 function updateScoreboard(ships){
-  document.getElementById('scoreboard').innerHTML=[...ships].sort((a,b)=>b.kills-a.kills).map(s=>`<div class="sb-row ${s.id===myId?'me ':''} ${s.dead?'dead':''}"><span class="sb-name" style="color:${SAIL_COLORS[s.colorIdx%SAIL_COLORS.length]}">${s.name}</span><span>${s.kills}K</span></div>`).join('');
+  const escapeHTML = str => str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  document.getElementById('scoreboard').innerHTML=[...ships].sort((a,b)=>b.kills-a.kills).map(s=>`<div class="sb-row ${s.id===myId?'me ':''} ${s.dead?'dead':''}"><span class="sb-name" style="color:${SAIL_COLORS[s.colorIdx%SAIL_COLORS.length]}">${escapeHTML(s.name)}</span><span>${s.kills}K</span></div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════
 //  GAME STATE & MAIN LOOP
 // ═══════════════════════════════════════════════════
 let myId=null,myRoomCode=null,gameState=null,keysDown={},animId=null;
-let prevHP={},prevBulletIds=new Set(),frame=0,currentMode='menu';
+let prevHP={},prevBullets=new Map(),frame=0,currentMode='menu';
 let lobbyPlayers=[],lobbySpinF=0;
 
 function gameLoop(){
@@ -506,7 +499,7 @@ function gameLoop(){
         if(!el) continue;
         const c2=el.getContext('2d');c2.clearRect(0,0,28,28);
         const sp=shipCache[`${(p.colorIdx||0)%SAIL_COLORS.length}_${dir}`];
-        if(sp) c2.drawImage(sp,14-SHIP_SIZE/2,14-SHIP_SIZE/2);
+        if(sp) c2.drawImage(sp,0,0,SHIP_SIZE,SHIP_SIZE,0,0,28,28);
       }
     }
   }
@@ -515,9 +508,9 @@ function gameLoop(){
     const{ships,bullets,powerups}=gameState;
     for(const s of ships){const prev=prevHP[s.id];if(prev!==undefined){if(s.hp<prev)spawnExplosion(s.x,s.y,false);if(s.dead&&prev>0)spawnExplosion(s.x,s.y,true);}prevHP[s.id]=s.hp;}
     const curIds=new Set(bullets.map(b=>b.id));
-    for(const b of bullets){if(!prevBulletIds.has(b.id)){const o=ships.find(s=>s.id===b.ownerId);if(o)spawnMuzzle(o.x,o.y,o.angle);}}
-    for(const id of prevBulletIds){if(!curIds.has(id)){const b=bullets.find(x=>x.id===id);if(b)spawnSplash(b.x,b.y);}}
-    prevBulletIds=curIds;
+    for(const b of bullets){if(!prevBullets.has(b.id)){const o=ships.find(s=>s.id===b.ownerId);if(o)spawnMuzzle(o.x,o.y,o.angle);}}
+    for(const [id, b] of prevBullets){if(!curIds.has(id)){spawnSplash(b.x,b.y);}}
+    prevBullets=new Map(bullets.map(b=>[b.id,b]));
     updateParticles();drawWater(frame);drawPowerups(powerups,frame);drawBullets(bullets);
     for(const s of ships)drawShip(s,frame,true);drawParticles();
     const me=ships.find(s=>s.id===myId);if(me)updateHUD(me);updateScoreboard(ships);
@@ -554,7 +547,7 @@ function handleMsg(msg){
   else if(msg.type==='start'){
     currentMode='game';
     gameState={ships:msg.ships,bullets:[],powerups:[],frame:0};
-    trails={};particles=[];prevHP={};prevBulletIds=new Set();
+    trails={};particles=[];prevHP={};prevBullets=new Map();
     showScreen(null);
     document.getElementById('hud').style.display='flex';
     document.getElementById('scoreboard').style.display='block';
@@ -567,6 +560,7 @@ function handleMsg(msg){
   }
   else if(msg.type==='gameOver'){
     currentMode='lobby';
+    if(inputInterval){clearInterval(inputInterval);inputInterval=null;}
     document.getElementById('hud').style.display='none';
     document.getElementById('scoreboard').style.display='none';
     if(msg.winnerId===myId){
@@ -629,6 +623,9 @@ async function createRoom(){
   }
 }
 
+// ═══════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════
 function copyText(text,btnId){
   navigator.clipboard.writeText(text).then(()=>{
     const btn=document.getElementById(btnId);
@@ -638,9 +635,6 @@ function copyText(text,btnId){
   }).catch(()=>alert('Copy failed — please copy manually:\n'+text));
 }
 
-// ═══════════════════════════════════════════════════
-//  AUTO-JOIN FROM URL
-// ═══════════════════════════════════════════════════
 function getRoomFromURL(){
   const p=new URLSearchParams(location.search);
   return (p.get('room')||'').toUpperCase().trim();
@@ -695,7 +689,14 @@ document.getElementById('btnJoinCode').onclick=()=>{
   send({type:'join',code,name});startInputLoop();
 };
 document.getElementById('codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnJoinCode').click();});
-document.getElementById('btnBackToLanding').onclick=()=>{showScreen('landingScreen');currentMode='menu';};
+document.getElementById('btnBackToLanding').onclick=()=>{
+  const codeInput=document.getElementById('codeInput');
+  codeInput.readOnly=false;
+  codeInput.value='';
+  codeInput.style.color='';
+  showScreen('landingScreen');
+  currentMode='menu';
+};
 
 // Room created → enter your own room
 document.getElementById('btnEnterRoom').onclick=()=>{
