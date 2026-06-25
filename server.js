@@ -22,6 +22,7 @@ const PU_LIFE      = 300;
 const MIN_PLAYERS  = 2;
 const MAX_PLAYERS  = 8;
 const RESPAWN_TICKS= 60 * 10;   // 10 seconds at 60fps
+const ROUND_TICKS  = 60 * 180;  // 3 minutes
 
 // ─── HTTP SERVER ──────────────────────────────────────
 const MIME = {
@@ -67,7 +68,7 @@ function genRoomCode() {
 function makeRoom(code) {
   return {
     code, ships:{}, inputs:{}, bullets:[], powerups:[],
-    phase:'lobby', frame:0, puTimer:0,
+    phase:'lobby', frame:0, puTimer:0, roundTimer:ROUND_TICKS,
     tickInterval:null, nextBulletId:0, nextPuId:0, colorIdx:0,
     clients: new Map(),
   };
@@ -100,7 +101,7 @@ function makeShip(room, id, name) {
     angle: angle+Math.PI, vx:0, vy:0,
     hp: MAX_HP, dead:false, spectating:false,
     respawnTimer: 0,
-    kills:0, shots:0, streak:0,
+    kills:0, shots:0, hits:0, streak:0,
     fireCd:0, inventory:[],
     activeShield:0, activeRapid:0, activeTriple:0,
   };
@@ -112,7 +113,7 @@ function sanitizeShips(room) {
     x:s.x, y:s.y, angle:s.angle, vx:s.vx, vy:s.vy,
     hp:s.hp, dead:s.dead, spectating:s.spectating,
     respawnTimer:s.respawnTimer,
-    kills:s.kills, shots:s.shots,
+    kills:s.kills, shots:s.shots, hits:s.hits,
     inventory:s.inventory,
     activeShield:s.activeShield, activeRapid:s.activeRapid, activeTriple:s.activeTriple,
   }));
@@ -157,6 +158,21 @@ function tick(room) {
   if (room.phase !== 'playing') return;
   room.frame++;
   room.puTimer++;
+  room.roundTimer--;
+
+  // ── ROUND TIMER EXPIRED ──
+  if (room.roundTimer <= 0) {
+    room.phase='ended';
+    const allShips=Object.values(room.ships);
+    // Winner = most kills, tiebreak = most HP
+    const winner=allShips.sort((a,b)=>b.kills-a.kills||(b.hp-a.hp))[0];
+    broadcastRoom(room,{type:'gameOver',winner:winner?.name||null,winnerId:winner?.id||null,ships:sanitizeShips(room),reason:'timeout'});
+    stopTick(room);
+    return;
+  }
+
+  // Warn at 30s
+  if (room.roundTimer === 30*60) broadcastRoom(room,{type:'killMsg',msg:'⏱ 30 SECONDS REMAINING!',color:'#ff4141'});
 
   if (room.puTimer > PU_SPAWN_INT && room.powerups.length < MAX_PU) {
     spawnPowerup(room); room.puTimer=0;
@@ -242,13 +258,22 @@ function tick(room) {
         if(!ship.activeShield){
           ship.hp-=BULLET_DMG;
           const atk=room.ships[b.ownerId];
-          if(atk){ atk.streak++; if(atk.streak>=CONSEC_REQ){atk.hp=Math.min(MAX_HP,atk.hp+CONSEC_HEAL);atk.streak=0;broadcastRoom(room,{type:'killMsg',msg:`${atk.name} healed +${CONSEC_HEAL}! 🩹`});} }
+          if(atk){
+            atk.hits++;
+            atk.streak++;
+            if(atk.streak>=CONSEC_REQ){atk.hp=Math.min(MAX_HP,atk.hp+CONSEC_HEAL);atk.streak=0;broadcastRoom(room,{type:'killMsg',msg:`${atk.name} healed +${CONSEC_HEAL}! 🩹`});}
+          }
+          // Send hit event for damage numbers
+          broadcastRoom(room,{type:'hit',x:ship.x,y:ship.y,dmg:BULLET_DMG,shielded:false,targetId:ship.id});
           if(ship.hp<=0){
             ship.hp=0; ship.dead=true; ship.spectating=true;
             ship.respawnTimer=RESPAWN_TICKS;
             if(atk){ atk.kills++; broadcastRoom(room,{type:'killMsg',msg:`${atk.name} sank ${ship.name}! 💀`,color:'#ff4141'}); }
             broadcastRoom(room,{type:'sunk',id:ship.id,respawnIn:RESPAWN_TICKS/60});
           }
+        } else {
+          // Shield absorbed
+          broadcastRoom(room,{type:'hit',x:ship.x,y:ship.y,dmg:0,shielded:true,targetId:ship.id});
         }
         break;
       }
@@ -272,6 +297,7 @@ function tick(room) {
 
   broadcastRoom(room,{
     type:'state', frame:room.frame,
+    roundTimer: room.roundTimer,
     ships:sanitizeShips(room),
     bullets:room.bullets.map(b=>({id:b.id,x:b.x,y:b.y,vx:b.vx,vy:b.vy})),
     powerups:room.powerups.map(p=>({id:p.id,x:p.x,y:p.y,type:p.type,life:p.life})),
@@ -280,7 +306,7 @@ function tick(room) {
 
 // ─── GAME CONTROL ─────────────────────────────────────
 function startGame(room) {
-  room.phase='playing'; room.frame=0; room.puTimer=0;
+  room.phase='playing'; room.frame=0; room.puTimer=0; room.roundTimer=ROUND_TICKS;
   room.bullets=[]; room.powerups=[];
   let ci=0; const count=Object.keys(room.ships).length;
   for (const ship of Object.values(room.ships)) {
@@ -288,7 +314,7 @@ function startGame(room) {
     ship.x=W/2+Math.cos(angle)*200; ship.y=H/2+Math.sin(angle)*200;
     ship.angle=angle+Math.PI; ship.vx=ship.vy=0;
     ship.hp=MAX_HP; ship.dead=false; ship.spectating=false; ship.respawnTimer=0;
-    ship.kills=ship.shots=ship.streak=0;
+    ship.kills=ship.shots=ship.hits=ship.streak=0;
     ship.fireCd=0; ship.inventory=[];
     ship.activeShield=ship.activeRapid=ship.activeTriple=0;
     ship.colorIdx=ci++;
