@@ -23,6 +23,26 @@ const MIN_PLAYERS  = 2;
 const MAX_PLAYERS  = 8;
 const RESPAWN_TICKS= 60 * 10;   // 10 seconds at 60fps
 const ROUND_TICKS  = 60 * 180;  // 3 minutes
+const EMPTY_ROOM_TTL_MS = 5 * 60 * 1000; // destroy a room if nobody ever joins within 5 min
+const CREATE_ROOM_RATE_LIMIT = 10;        // max room creations
+const CREATE_ROOM_RATE_WINDOW_MS = 60 * 1000; // per IP per minute
+
+// ─── STATIC FILE SAFETY ───────────────────────────────
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// Resolve a request path safely inside PUBLIC_DIR. Returns null if the
+// request tries to escape the public directory (path traversal), so a
+// request like `GET /../server.js` or `GET /..%2f..%2fetc/passwd` can
+// never read files outside of /public.
+function safePublicPath(urlPath) {
+  const decoded = (() => { try { return decodeURIComponent(urlPath); } catch { return urlPath; } })();
+  const requested = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
+  const resolved = path.resolve(PUBLIC_DIR, requested);
+  if (resolved !== PUBLIC_DIR && !resolved.startsWith(PUBLIC_DIR + path.sep)) {
+    return null; // escaped the public directory
+  }
+  return resolved;
+}
 
 // ─── HTTP SERVER ──────────────────────────────────────
 const MIME = {
@@ -30,20 +50,42 @@ const MIME = {
   '.css':'text/css',  '.png':'image/png','.ico':'image/x-icon',
 };
 
+// Tiny in-memory rate limiter for the unauthenticated create-room endpoint,
+// keyed by remote address, so a script can't spam-create rooms forever.
+const createRoomHits = new Map(); // ip -> [timestamps]
+function isRateLimited(ip) {
+  const now = Date.now();
+  let hits = createRoomHits.get(ip) || [];
+  hits = hits.filter(t => now - t < CREATE_ROOM_RATE_WINDOW_MS);
+  hits.push(now);
+  createRoomHits.set(ip, hits);
+  return hits.length > CREATE_ROOM_RATE_LIMIT;
+}
+
 const httpServer = http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/create-room') {
+    const ip = req.socket.remoteAddress || 'unknown';
+    if (isRateLimited(ip)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Too many rooms created. Try again in a minute.' }));
+      return;
+    }
     const code = genRoomCode();
     rooms.set(code, makeRoom(code));
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ code }));
     return;
   }
-  let filePath = path.join(__dirname, 'public',
-    req.url === '/' || req.url.startsWith('/?') ? 'index.html' : req.url);
+
+  const urlPath = req.url.split('?')[0];
+  let filePath = safePublicPath(urlPath);
+  if (!filePath) { res.writeHead(400); res.end('Bad request'); return; }
+
   const ext = path.extname(filePath);
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      fs.readFile(path.join(__dirname, 'public', 'index.html'), (e2, d2) => {
+      // SPA-style fallback to index.html for unknown routes (e.g. /?room=ABC123)
+      fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (e2, d2) => {
         if (e2) { res.writeHead(404); res.end('Not found'); }
         else    { res.writeHead(200, { 'Content-Type':'text/html' }); res.end(d2); }
       });
@@ -70,7 +112,7 @@ function makeRoom(code) {
     code, ships:{}, inputs:{}, bullets:[], powerups:[],
     phase:'lobby', frame:0, puTimer:0, roundTimer:ROUND_TICKS,
     tickInterval:null, nextBulletId:0, nextPuId:0, colorIdx:0,
-    clients: new Map(),
+    clients: new Map(), createdAt: Date.now(), everJoined: false,
   };
 }
 
@@ -78,6 +120,17 @@ function destroyRoom(room) {
   if (room.tickInterval) clearInterval(room.tickInterval);
   rooms.delete(room.code);
 }
+
+// Rooms that were created (via /api/create-room) but nobody ever joined
+// would otherwise live in memory forever. Sweep those out periodically.
+setInterval(() => {
+  const now = Date.now();
+  for (const room of rooms.values()) {
+    if (!room.everJoined && now - room.createdAt > EMPTY_ROOM_TTL_MS) {
+      destroyRoom(room);
+    }
+  }
+}, 60 * 1000);
 
 // ─── HELPERS ──────────────────────────────────────────
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
@@ -346,17 +399,18 @@ wss.on('connection', ws => {
     let msg; try{ msg=JSON.parse(raw); }catch{ return; }
 
     if (msg.type==='join') {
-      const code=(msg.code||'').toUpperCase().trim();
+      const code=String(msg.code||'').toUpperCase().trim();
       room=rooms.get(code);
       if(!room){ ws.send(JSON.stringify({type:'error',msg:`Room "${code}" not found.`})); return; }
       if(room.phase==='playing'){ ws.send(JSON.stringify({type:'error',msg:'Game in progress. Wait for next round.'})); return; }
       if(Object.keys(room.ships).length>=MAX_PLAYERS){ ws.send(JSON.stringify({type:'error',msg:'Room is full!'})); return; }
 
       playerId='p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-      const name=(msg.name||'CAPTAIN').toUpperCase().slice(0,12);
+      const name=String(msg.name||'CAPTAIN').toUpperCase().slice(0,12);
       room.ships[playerId]=makeShip(room,playerId,name);
       room.inputs[playerId]={};
       room.clients.set(ws,playerId);
+      room.everJoined=true;
       ws.send(JSON.stringify({type:'joined',id:playerId,code:room.code}));
       broadcastLobby(room);
     }
