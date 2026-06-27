@@ -8,6 +8,7 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "ws": "^8.16.0"
+    "jsdom": "^29.1.1",
+    "ws": "^8.21.0"
   }
 }
