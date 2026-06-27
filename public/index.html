@@ -139,6 +139,7 @@
         <button class="btn" id="btnCreate">⚓ CREATE ROOM</button>
         <button class="btn outline" id="btnGoJoin">🔗 JOIN WITH CODE</button>
         <div class="sub" style="font-size:6px">CREATE A ROOM AND SHARE THE LINK WITH YOUR CREW</div>
+        <div class="err" id="landingErr"></div>
       </div>
     </div>
 
@@ -864,10 +865,12 @@ function renderLobby(msg){
 // ═══════════════════════════════════════════════════
 async function createRoom(){
   const btn = document.getElementById('btnCreate');
+  const errEl = document.getElementById('landingErr');
   if (btn.disabled) return; // guard against double-clicks while a request is in flight
   const originalLabel = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⚓ CREATING…';
+  errEl.textContent = '';
 
   // Render's free tier (and similar hosts) can take 30-50s to wake a sleeping
   // server on the first request. Without a timeout + visible state, a click
@@ -893,10 +896,14 @@ async function createRoom(){
     document.getElementById('btnCopyLink').onclick = () => copyText(link, 'btnCopyLink');
     showScreen('roomCreatedScreen');
   } catch(e) {
+    console.error('createRoom failed:', e);
     const msg = e.name === 'AbortError'
-      ? 'The server is taking a while to wake up (this can happen on a free tier after it\'s been idle). Please try again in a moment.'
-      : (e.serverMessage ? e.serverMessage : `Could not create room: ${e.message || 'unknown error'}. Is the server running?`);
-    alert(msg);
+      ? 'The server is taking a while to wake up (this can happen on a free tier after it\'s been idle). Please try again.'
+      : (e.serverMessage ? e.serverMessage : `Could not create room: ${e.message || 'unknown error'}.`);
+    // Shown inline rather than via alert() — alert can be silently blocked
+    // in some embedded/preview contexts, which would make a real failure
+    // look like nothing happened at all.
+    errEl.textContent = msg;
   } finally {
     clearTimeout(timeoutId);
     btn.disabled = false;
@@ -1004,7 +1011,13 @@ function hideMobileControls(){
 // ═══════════════════════════════════════════════════
 function showScreen(id){
   ['landingScreen','joinCodeScreen','roomCreatedScreen','lobbyScreen','gameOverScreen'].forEach(s=>{
-    document.getElementById(s).style.display=(s===id)?'flex':'none';
+    const el=document.getElementById(s);
+    const isTarget=(s===id);
+    // .screen.hidden uses display:none!important in CSS, so an inline
+    // style.display alone can never override it — the class itself must
+    // be removed, or the screen stays invisible no matter what JS sets.
+    el.classList.toggle('hidden', !isTarget);
+    el.style.display = isTarget ? 'flex' : 'none';
   });
 }
 function addKillMsg(msg,color='#ffcc55'){
@@ -1018,11 +1031,22 @@ function addKillMsg(msg,color='#ffcc55'){
 // ═══════════════════════════════════════════════════
 document.getElementById('btnCreate').onclick=()=>createRoom();
 document.getElementById('btnGoJoin').onclick=()=>{showScreen('joinCodeScreen');currentMode='joincode';};
+// Ship names: letters and spaces only — strip anything else as the user types
+// so it's impossible to even type a number/symbol, not just rejected on submit.
+function lettersAndSpacesOnly(el){
+  el.addEventListener('input',()=>{
+    const cleaned=el.value.replace(/[^A-Za-z ]/g,'');
+    if(cleaned!==el.value) el.value=cleaned;
+  });
+}
+lettersAndSpacesOnly(document.getElementById('nameInputCreate'));
+lettersAndSpacesOnly(document.getElementById('nameInputCode'));
 document.getElementById('btnJoinCode').onclick=()=>{
   const code=document.getElementById('codeInput').value.trim().toUpperCase();
   const name=document.getElementById('nameInputCode').value.trim();
   if(!code){document.getElementById('joinCodeErr').textContent='Enter a room code!';return;}
   if(!name){document.getElementById('joinCodeErr').textContent='Enter a ship name!';return;}
+  if(!/^[A-Za-z ]+$/.test(name)){document.getElementById('joinCodeErr').textContent='Name can only contain letters and spaces!';return;}
   send({type:'join',code,name});startInputLoop();
 };
 document.getElementById('codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnJoinCode').click();});
@@ -1031,6 +1055,7 @@ document.getElementById('btnEnterRoom').onclick=()=>{
   const name=document.getElementById('nameInputCreate').value.trim();
   const code=document.getElementById('displayCode').textContent.trim();
   if(!name){document.getElementById('createErr').textContent='Enter a ship name!';return;}
+  if(!/^[A-Za-z ]+$/.test(name)){document.getElementById('createErr').textContent='Name can only contain letters and spaces!';return;}
   send({type:'join',code,name});startInputLoop();
 };
 document.getElementById('nameInputCreate').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnEnterRoom').click();});
