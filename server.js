@@ -406,7 +406,11 @@ wss.on('connection', ws => {
       if(Object.keys(room.ships).length>=MAX_PLAYERS){ ws.send(JSON.stringify({type:'error',msg:'Room is full!'})); return; }
 
       playerId='p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-      const name=String(msg.name||'CAPTAIN').toUpperCase().slice(0,12);
+      // Defense in depth: a client could bypass the browser's input filter
+      // and send anything over the socket directly, so strip non-letters
+      // here too, not just in the UI.
+      const rawName=String(msg.name||'').replace(/[^A-Za-z ]/g,'').trim();
+      const name=(rawName||'CAPTAIN').toUpperCase().slice(0,12);
       room.ships[playerId]=makeShip(room,playerId,name);
       room.inputs[playerId]={};
       room.clients.set(ws,playerId);
